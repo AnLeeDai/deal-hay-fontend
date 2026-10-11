@@ -79,8 +79,14 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserAvatar } from "@/components/user-avatar"
-import { appendOptionalFile, applyServerErrors } from "@/lib/form-utils"
+import {
+  appendOptionalFile,
+  applyServerErrors,
+  runUploadAction,
+} from "@/lib/form-utils"
 import { formatCurrency, formatDate } from "@/lib/format"
+import { IMAGE_UPLOAD_ACCEPT } from "@/lib/validation"
+import { prepareImageUploads } from "@/lib/image-upload"
 import type { User } from "@/types/auth"
 import type {
   InventoryMovement,
@@ -376,7 +382,9 @@ function ShopAvatarForm({ user }: { user: User }) {
     appendOptionalFile(formData, "avatar", values.avatar)
 
     startTransition(async () => {
-      const state = await updateShopAvatarAction(formData)
+      const state = await runUploadAction(async () =>
+        updateShopAvatarAction(await prepareImageUploads(formData, "avatar"))
+      )
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
 
       if (state.success) {
@@ -416,7 +424,7 @@ function ShopAvatarForm({ user }: { user: User }) {
                       />
                     ) : (
                       <Input
-                        accept="image/*"
+                        accept={IMAGE_UPLOAD_ACCEPT}
                         name={field.name}
                         ref={field.ref}
                         type="file"

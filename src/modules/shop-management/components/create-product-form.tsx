@@ -29,16 +29,15 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { applyServerErrors } from "@/lib/form-utils"
+import { applyServerErrors, runUploadAction } from "@/lib/form-utils"
+import { IMAGE_UPLOAD_ACCEPT } from "@/lib/validation"
+import { prepareImageUploads } from "@/lib/image-upload"
 import type { ShopCategory } from "@/types/shop"
 import { createProductAction } from "@/modules/shop-management/actions"
 import {
   createProductSchema,
   type CreateProductValues,
 } from "@/modules/shop-management/schemas/shop-management"
-
-const productImageAccept =
-  "image/jpeg,image/png,image/gif,image/webp,image/avif,image/bmp"
 
 function initialProductValues(categories: ShopCategory[]): CreateProductValues {
   return {
@@ -245,7 +244,9 @@ export function CreateProductForm({
     )
 
     startTransition(async () => {
-      const state = await createProductAction(formData)
+      const state = await runUploadAction(async () =>
+        createProductAction(await prepareImageUploads(formData, "product"))
+      )
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
 
       if (state.success) {
@@ -392,7 +393,7 @@ export function CreateProductForm({
                   ) : (
                     <FormControl>
                       <Input
-                        accept={productImageAccept}
+                        accept={IMAGE_UPLOAD_ACCEPT}
                         name={field.name}
                         ref={field.ref}
                         type="file"
@@ -435,7 +436,7 @@ export function CreateProductForm({
                   <FormControl>
                     <Input
                       multiple
-                      accept={productImageAccept}
+                      accept={IMAGE_UPLOAD_ACCEPT}
                       name={field.name}
                       ref={field.ref}
                       type="file"
@@ -448,7 +449,8 @@ export function CreateProductForm({
                     />
                   </FormControl>
                   <FormDescription>
-                    Đã chọn {value.length}/50 ảnh bổ sung.
+                    Đã chọn {value.length}/50 ảnh bổ sung. Mỗi ảnh tối đa 30 MB;
+                    tổng dung lượng ảnh sản phẩm tối đa 32 MB.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

@@ -5,7 +5,12 @@ import { ProfilePageContainer } from "@/modules/profile/containers/profile-page-
 
 export const metadata: Metadata = { title: "Hồ sơ của tôi" }
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
   await requireAuth()
-  return <ProfilePageContainer />
+  const { tab } = await searchParams
+  return <ProfilePageContainer tab={tab} />
 }

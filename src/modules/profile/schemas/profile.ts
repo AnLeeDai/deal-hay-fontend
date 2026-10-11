@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import {
-  fileSchema,
+  imageFileSchema,
   phoneNumberRegex,
   requiredText,
   strongPasswordRegex,
@@ -57,7 +57,7 @@ export const updatePasswordSchema = z
   })
 
 export const avatarSchema = z.object({
-  avatar: fileSchema("Vui lòng chọn ảnh đại diện hợp lệ."),
+  avatar: imageFileSchema("Vui lòng chọn ảnh đại diện hợp lệ."),
 })
 
 export const updateShopProfileSchema = z.object({

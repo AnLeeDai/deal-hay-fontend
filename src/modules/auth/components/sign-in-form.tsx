@@ -23,11 +23,12 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { getAuthPageHref } from "@/lib/auth-redirect"
 import { applyServerErrors } from "@/lib/form-utils"
 import { signInAction } from "@/modules/auth/actions"
 import { signInSchema, type SignInValues } from "@/modules/auth/schemas/auth"
 
-export function SignInForm() {
+export function SignInForm({ redirectTo }: { redirectTo?: string }) {
   const [isPending, startTransition] = useTransition()
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
@@ -40,7 +41,7 @@ export function SignInForm() {
 
   const onSubmit = form.handleSubmit((values) => {
     startTransition(async () => {
-      const state = await signInAction(values)
+      const state = await signInAction(values, redirectTo)
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
 
       if (!state.success && !hasFieldErrors && state.message) {
@@ -131,7 +132,7 @@ export function SignInForm() {
           </Link>
           <Link
             className="text-primary underline-offset-4 hover:underline"
-            href="/sign-up"
+            href={getAuthPageHref("/sign-up", redirectTo)}
           >
             Tạo tài khoản
           </Link>

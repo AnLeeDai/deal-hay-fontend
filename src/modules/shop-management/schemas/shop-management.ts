@@ -1,6 +1,10 @@
 import { z } from "zod"
 
-import { fileSchema, requiredText } from "@/lib/validation"
+import {
+  imageFileSchema,
+  PRODUCT_IMAGES_UPLOAD_MAX_BYTES,
+  requiredText,
+} from "@/lib/validation"
 
 const optionalLabelSchema = z.union([
   z.string().trim().max(80, "Nhãn sản phẩm không được vượt quá 80 ký tự."),
@@ -15,24 +19,6 @@ const optionalVariantPriceSchema = z.union([
     .max(999999999, "Giá biến thể quá lớn."),
   z.literal(""),
 ])
-const productImageMimeTypes = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/avif",
-  "image/bmp",
-])
-const imageFileSchema = (message: string) =>
-  fileSchema(message)
-    .refine(
-      (file) => productImageMimeTypes.has(file.type),
-      "Ảnh phải có định dạng JPG, PNG, GIF, WEBP, AVIF hoặc BMP."
-    )
-    .refine(
-      (file) => file.size <= 30 * 1024 * 1024,
-      "Mỗi ảnh không được vượt quá 30 MB."
-    )
 const optionalVariantSchema = z.union([
   z.string().trim().uuid("Biến thể sản phẩm không hợp lệ."),
   z.literal(""),
@@ -106,6 +92,18 @@ export const createProductSchema = z
       .max(100, "Mỗi sản phẩm có tối đa 100 biến thể."),
   })
   .superRefine((value, context) => {
+    const totalImageBytes = [value.image, ...value.gallery_images].reduce(
+      (total, file) => total + file.size,
+      0
+    )
+    if (totalImageBytes > PRODUCT_IMAGES_UPLOAD_MAX_BYTES) {
+      context.addIssue({
+        code: "custom",
+        path: ["gallery_images"],
+        message: "Tổng dung lượng ảnh sản phẩm không được vượt quá 32 MB.",
+      })
+    }
+
     if (!value.has_variants) {
       return
     }

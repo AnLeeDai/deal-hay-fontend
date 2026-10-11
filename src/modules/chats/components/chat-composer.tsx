@@ -25,7 +25,10 @@ import {
   appendOptionalFile,
   appendOptionalString,
   applyServerErrors,
+  runUploadAction,
 } from "@/lib/form-utils"
+import { CHAT_ATTACHMENT_ACCEPT } from "@/lib/validation"
+import { prepareImageUploads } from "@/lib/image-upload"
 import { sendMessageAction } from "@/modules/chats/actions"
 import {
   sendMessageSchema,
@@ -57,7 +60,12 @@ export function ChatComposer({
     if (socketId) formData.set("socket_id", socketId)
 
     startTransition(async () => {
-      const state = await sendMessageAction(conversationSlug, formData)
+      const state = await runUploadAction(async () =>
+        sendMessageAction(
+          conversationSlug,
+          await prepareImageUploads(formData, "chat")
+        )
+      )
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
 
       if (state.success && state.data) {
@@ -174,7 +182,7 @@ export function ChatComposer({
                     ref(node)
                     fileInputRef.current = node
                   }}
-                  accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                  accept={CHAT_ATTACHMENT_ACCEPT}
                   className="sr-only"
                   type="file"
                   value={undefined}

@@ -10,6 +10,7 @@ import {
   StoreIcon,
 } from "lucide-react"
 
+import { getCurrentSession } from "@/api/auth/queries"
 import { getHome } from "@/api/catalog/queries"
 import { EmptyState } from "@/components/layout/empty-state"
 import { Badge } from "@/components/ui/badge"
@@ -24,11 +25,22 @@ import {
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { UserAvatar } from "@/components/user-avatar"
+import { getAuthPageHref } from "@/lib/auth-redirect"
 import { ProductCard } from "@/modules/public/components/product-card"
 
 export async function HomePageContainer({ category }: { category?: string }) {
-  const data = await getHome(category)
+  const [data, session] = await Promise.all([
+    getHome(category),
+    getCurrentSession(),
+  ])
   const activeCategory = data.filters.category
+  const sellerHref = !session.user
+    ? getAuthPageHref("/sign-up", "/profile?tab=seller")
+    : session.user.role === "shop_owner"
+      ? "/shop-manage"
+      : session.user.role === "administrator"
+        ? "/admin/shops"
+        : "/profile?tab=seller"
 
   return (
     <div className="space-y-12">
@@ -65,7 +77,7 @@ export async function HomePageContainer({ category }: { category?: string }) {
               <Button
                 className="border-background/20 bg-background/5 text-background hover:bg-background/10 hover:text-background"
                 nativeButton={false}
-                render={<Link href="/sign-up" />}
+                render={<Link href={sellerHref} />}
                 size="lg"
                 variant="outline"
               >

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+import { getSafeAuthRedirect } from "@/lib/auth-redirect"
 import { AUTH_ROLE_COOKIE, AUTH_TOKEN_COOKIE } from "@/lib/cookies"
 
 const protectedPrefixes = [
@@ -29,7 +30,10 @@ export function proxy(request: NextRequest) {
   ) {
     if (!token) {
       const signInUrl = new URL("/sign-in", request.url)
-      signInUrl.searchParams.set("redirect", pathname)
+      signInUrl.searchParams.set(
+        "redirect",
+        `${pathname}${request.nextUrl.search}`
+      )
       return NextResponse.redirect(signInUrl)
     }
 
@@ -44,7 +48,10 @@ export function proxy(request: NextRequest) {
       (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
     )
   ) {
-    return NextResponse.redirect(new URL("/", request.url))
+    const destination = getSafeAuthRedirect(
+      request.nextUrl.searchParams.get("redirect")
+    )
+    return NextResponse.redirect(new URL(destination, request.url))
   }
 
   return NextResponse.next()

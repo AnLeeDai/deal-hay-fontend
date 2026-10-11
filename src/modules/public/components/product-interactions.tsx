@@ -41,7 +41,13 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { UserAvatar } from "@/components/user-avatar"
-import { appendOptionalFile, applyServerErrors } from "@/lib/form-utils"
+import {
+  appendOptionalFile,
+  applyServerErrors,
+  runUploadAction,
+} from "@/lib/form-utils"
+import { IMAGE_UPLOAD_ACCEPT } from "@/lib/validation"
+import { prepareImageUploads } from "@/lib/image-upload"
 import { formatCurrency } from "@/lib/format"
 import {
   deleteReviewAction,
@@ -76,7 +82,13 @@ function ReviewProductForm({
     appendOptionalFile(formData, "image", values.image)
 
     startTransition(async () => {
-      const state = await reviewProductAction(shopCode, productSlug, formData)
+      const state = await runUploadAction(async () =>
+        reviewProductAction(
+          shopCode,
+          productSlug,
+          await prepareImageUploads(formData, "review")
+        )
+      )
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
       if (state.success) {
         toast.success(state.message)
@@ -143,7 +155,7 @@ function ReviewProductForm({
                     />
                   ) : (
                     <Input
-                      accept="image/*"
+                      accept={IMAGE_UPLOAD_ACCEPT}
                       name={field.name}
                       ref={field.ref}
                       type="file"

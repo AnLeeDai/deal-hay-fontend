@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { optionalFileSchema } from "@/lib/validation"
+import { chatAttachmentFileSchema } from "@/lib/validation"
 
 const optionalBodySchema = z.union([
   z.string().trim().max(2000, "Tin nhắn không được vượt quá 2.000 ký tự."),
@@ -10,7 +10,9 @@ const optionalBodySchema = z.union([
 export const sendMessageSchema = z
   .object({
     body: optionalBodySchema,
-    attachment: optionalFileSchema("Tệp đính kèm không hợp lệ."),
+    attachment: chatAttachmentFileSchema(
+      "Tệp đính kèm không hợp lệ."
+    ).optional(),
   })
   .superRefine((value, context) => {
     if (!value.body && !value.attachment) {

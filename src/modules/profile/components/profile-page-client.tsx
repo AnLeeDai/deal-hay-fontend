@@ -29,7 +29,13 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserAvatar } from "@/components/user-avatar"
-import { appendOptionalFile, applyServerErrors } from "@/lib/form-utils"
+import {
+  appendOptionalFile,
+  applyServerErrors,
+  runUploadAction,
+} from "@/lib/form-utils"
+import { IMAGE_UPLOAD_ACCEPT } from "@/lib/validation"
+import { prepareImageUploads } from "@/lib/image-upload"
 import type { User } from "@/types/auth"
 import {
   shopOwnerUpgradeAction,
@@ -278,7 +284,9 @@ function AvatarForm() {
     appendOptionalFile(formData, "avatar", values.avatar)
 
     startTransition(async () => {
-      const state = await updateAvatarAction(formData)
+      const state = await runUploadAction(async () =>
+        updateAvatarAction(await prepareImageUploads(formData, "avatar"))
+      )
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
 
       if (state.success) {
@@ -311,7 +319,7 @@ function AvatarForm() {
                     />
                   ) : (
                     <Input
-                      accept="image/*"
+                      accept={IMAGE_UPLOAD_ACCEPT}
                       name={field.name}
                       ref={field.ref}
                       type="file"
@@ -517,7 +525,14 @@ function ShopOwnerUpgradeForm({ user }: { user: User }) {
   )
 }
 
-export function ProfilePageClient({ user }: { user: User }) {
+export function ProfilePageClient({ tab, user }: { tab?: string; user: User }) {
+  const defaultTab =
+    tab === "security"
+      ? "security"
+      : tab === "seller" && user.role === "customer"
+        ? "seller"
+        : "profile"
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -550,7 +565,7 @@ export function ProfilePageClient({ user }: { user: User }) {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="profile">
+      <Tabs key={defaultTab} defaultValue={defaultTab}>
         <TabsList className="grid h-auto w-full grid-cols-2 sm:w-fit sm:grid-cols-3">
           <TabsTrigger value="profile">
             <UserRoundIcon /> Hồ sơ

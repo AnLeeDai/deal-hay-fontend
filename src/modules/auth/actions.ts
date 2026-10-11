@@ -12,6 +12,7 @@ import {
   resetPassword,
 } from "@/api/auth/mutations"
 import { clearAuthCookies, setAuthCookies } from "@/lib/auth"
+import { getSafeAuthRedirect } from "@/lib/auth-redirect"
 import type { ActionState } from "@/types/forms"
 import {
   forgotPasswordSchema,
@@ -32,7 +33,10 @@ function fromApiError(error: ApiError): ActionState {
   }
 }
 
-export async function signInAction(values: SignInValues): Promise<ActionState> {
+export async function signInAction(
+  values: SignInValues,
+  redirectTo?: string
+): Promise<ActionState> {
   const parsed = signInSchema.safeParse(values)
 
   if (!parsed.success) {
@@ -58,10 +62,13 @@ export async function signInAction(values: SignInValues): Promise<ActionState> {
     return { success: false, message: "Không thể đăng nhập. Vui lòng thử lại." }
   }
 
-  redirect("/")
+  redirect(getSafeAuthRedirect(redirectTo))
 }
 
-export async function signUpAction(values: SignUpValues): Promise<ActionState> {
+export async function signUpAction(
+  values: SignUpValues,
+  redirectTo?: string
+): Promise<ActionState> {
   const parsed = signUpSchema.safeParse(values)
 
   if (!parsed.success) {
@@ -88,7 +95,7 @@ export async function signUpAction(values: SignUpValues): Promise<ActionState> {
     return { success: false, message: "Không thể đăng ký. Vui lòng thử lại." }
   }
 
-  redirect("/")
+  redirect(getSafeAuthRedirect(redirectTo))
 }
 
 export async function forgotPasswordAction(
