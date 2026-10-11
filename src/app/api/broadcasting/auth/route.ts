@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     return Response.json({ message: "Unauthenticated." }, { status: 401 })
   }
 
-  const upstreamUrl = new URL("/broadcasting/auth", env.BACKEND_API_URL)
+  const upstreamUrl = new URL("/broadcasting/auth", env.NEXT_PUBLIC_API)
   const headers = new Headers({
     Accept: "application/json",
     Authorization: `Bearer ${token}`,

@@ -504,13 +504,13 @@ Không hardcode:
 Ví dụ:
 
 ```env
-BACKEND_API_URL=http://localhost:8000/api
+NEXT_PUBLIC_API=http://localhost:8000/api
 ```
 
 API layer sử dụng:
 
 ```ts
-process.env.BACKEND_API_URL
+process.env.NEXT_PUBLIC_API
 ```
 
 Không viết:
@@ -548,13 +548,13 @@ Do data fetching chủ yếu chạy server-side nên Laravel Backend URL mặc �
 Ví dụ:
 
 ```env
-BACKEND_API_URL=http://localhost:8000/api
+NEXT_PUBLIC_API=http://localhost:8000/api
 ```
 
 Không viết:
 
 ```env
-NEXT_PUBLIC_BACKEND_API_URL=
+NEXT_PUBLIC_NEXT_PUBLIC_API=
 ```
 
 trừ khi browser thực sự bắt buộc phải gọi trực tiếp endpoint đó.
@@ -596,7 +596,7 @@ Ví dụ:
 import "server-only";
 
 export const env = {
-  backendApiUrl: process.env.BACKEND_API_URL!,
+  backendApiUrl: process.env.NEXT_PUBLIC_API!,
 };
 ```
 
@@ -893,7 +893,7 @@ Nếu có nhiều giải pháp, luôn chọn giải pháp phù hợp nhất vớ
 Import repository frontend vào Vercel và cấu hình biến server-only sau cho từng môi trường Development, Preview và Production:
 
 ```env
-BACKEND_API_URL=https://your-api-host.onrender.com/api
+NEXT_PUBLIC_API=https://your-api-host.onrender.com/api
 ```
 
 Không thêm `NEXT_PUBLIC_` vì URL này chỉ được đọc ở Next.js server. Sau khi thay đổi biến môi trường, phải tạo deployment mới để giá trị mới có hiệu lực.

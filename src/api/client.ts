@@ -73,7 +73,7 @@ export async function apiFetch<T>({
 }: ApiRequestOptions): Promise<T> {
   const resolvedToken = await resolveToken(token)
   const requestHeaders = new Headers(headers)
-  const url = `${env.BACKEND_API_URL}${path}${toQueryString(searchParams)}`
+  const url = `${env.NEXT_PUBLIC_API}${path}${toQueryString(searchParams)}`
 
   if (resolvedToken) {
     requestHeaders.set("Authorization", `Bearer ${resolvedToken}`)

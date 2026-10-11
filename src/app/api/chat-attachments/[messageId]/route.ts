@@ -17,7 +17,7 @@ export async function GET(
 
   const { messageId } = await params
   const upstream = await fetch(
-    `${env.BACKEND_API_URL}/messages/attachments/${encodeURIComponent(messageId)}`,
+    `${env.NEXT_PUBLIC_API}/messages/attachments/${encodeURIComponent(messageId)}`,
     {
       cache: "no-store",
       headers: {
