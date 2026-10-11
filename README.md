@@ -543,7 +543,7 @@ Dùng cho:
 
 ## 17. Không expose backend config xuống browser
 
-Do data fetching chủ yếu chạy server-side nên Laravel Backend URL mặc định phải là server-only variable.
+Data fetching chạy server-side. Cấu hình Laravel Backend URL hiện dùng `NEXT_PUBLIC_API` và module `config/env.ts` được bảo vệ bằng `server-only`.
 
 Ví dụ:
 
@@ -551,13 +551,7 @@ Ví dụ:
 NEXT_PUBLIC_API=http://localhost:8000/api
 ```
 
-Không viết:
-
-```env
-NEXT_PUBLIC_NEXT_PUBLIC_API=
-```
-
-trừ khi browser thực sự bắt buộc phải gọi trực tiếp endpoint đó.
+Prefix `NEXT_PUBLIC_` khiến Next.js thay giá trị trực tiếp vào mã khi build. URL này không được chứa secret. Khi đổi URL phải build và deploy lại; không import module `config/env.ts` vào Client Component.
 
 Ưu tiên để request xảy ra:
 
@@ -890,12 +884,14 @@ Nếu có nhiều giải pháp, luôn chọn giải pháp phù hợp nhất vớ
 
 ## 30. Deploy trên Vercel
 
-Import repository frontend vào Vercel và cấu hình biến server-only sau cho từng môi trường Development, Preview và Production:
+Import repository frontend vào Vercel và cấu hình biến sau trong Settings → Environment Variables cho môi trường Preview và Production:
 
 ```env
 NEXT_PUBLIC_API=https://your-api-host.onrender.com/api
 ```
 
-Không thêm `NEXT_PUBLIC_` vì URL này chỉ được đọc ở Next.js server. Sau khi thay đổi biến môi trường, phải tạo deployment mới để giá trị mới có hiệu lực.
+Tên biến phải đúng là `NEXT_PUBLIC_API`, giá trị là URL HTTP API của Laravel có hậu tố `/api`. Không dùng localhost trong Preview hoặc Production. `.env.local` chỉ cấu hình máy local và không được commit; nó không thiết lập biến cho Vercel. Vì giá trị `NEXT_PUBLIC_API` được thay vào mã khi build, sau khi sửa biến phải Redeploy để tạo deployment mới.
+
+Trước khi deploy frontend, kiểm tra `GET https://your-api-host.onrender.com/api/` trả JSON trang chủ với HTTP 200. `/up` trả 200 chưa đủ để xác nhận Laravel API hoạt động: nếu nó trả `{"health":"OK"}` và `/api/*` trả `Not found.`, traffic có thể đang đi vào Laravel Reverb. Trên Render, chỉ HTTP server được nghe cổng công khai; Reverb phải nghe nội bộ và đi qua Caddy.
 
 Nếu frontend nằm trong monorepo, đặt Vercel Root Directory là `deal-hay-fontend`. Build command và output directory giữ mặc định của Next.js.

@@ -3,7 +3,11 @@ import "server-only"
 import { z } from "zod"
 
 const envSchema = z.object({
-  NEXT_PUBLIC_API: z.string().url(),
+  NEXT_PUBLIC_API: z
+    .string()
+    .trim()
+    .url()
+    .transform((url) => url.replace(/\/+$/, "")),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),

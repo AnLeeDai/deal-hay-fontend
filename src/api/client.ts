@@ -75,6 +75,10 @@ export async function apiFetch<T>({
   const requestHeaders = new Headers(headers)
   const url = `${env.NEXT_PUBLIC_API}${path}${toQueryString(searchParams)}`
 
+  if (!requestHeaders.has("Accept")) {
+    requestHeaders.set("Accept", "application/json")
+  }
+
   if (resolvedToken) {
     requestHeaders.set("Authorization", `Bearer ${resolvedToken}`)
   }
