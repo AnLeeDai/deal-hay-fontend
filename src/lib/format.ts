@@ -9,6 +9,7 @@ export function formatCurrency(value: number): string {
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "—"
   return new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -20,6 +21,7 @@ export function formatDate(value: string | null | undefined): string {
 export function formatShortDate(value: string | null | undefined): string {
   if (!value) return "—"
   return new Intl.DateTimeFormat("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
