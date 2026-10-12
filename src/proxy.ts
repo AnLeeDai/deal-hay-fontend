@@ -5,6 +5,7 @@ import { getSafeAuthRedirect } from "@/lib/auth-redirect"
 import { AUTH_ROLE_COOKIE, AUTH_TOKEN_COOKIE } from "@/lib/cookies"
 
 const protectedPrefixes = [
+  "/sell",
   "/profile",
   "/notifications",
   "/chats",
@@ -59,6 +60,7 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/sell/:path*",
     "/sign-in/:path*",
     "/sign-up/:path*",
     "/forgot-password/:path*",

@@ -120,6 +120,7 @@ export async function createProductAction(
   try {
     const response = await createProduct(payload)
     revalidatePath("/shop-manage")
+    revalidatePath("/sell")
     return { success: true, message: response.message }
   } catch (error) {
     return toState(error, "Không thể tạo sản phẩm.")

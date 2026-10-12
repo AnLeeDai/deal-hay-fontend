@@ -105,7 +105,7 @@ export function SelectedFilePreview({
       <AttachmentContent>
         <AttachmentTitle>{file.name}</AttachmentTitle>
         <AttachmentDescription>
-          {isImage ? "Ảnh đã sẵn sàng" : "Tệp đã sẵn sàng"} ·{" "}
+          {isImage ? "Ảnh đã chọn" : "Tệp đã chọn"} ·{" "}
           {formatFileSize(file.size)}
         </AttachmentDescription>
       </AttachmentContent>

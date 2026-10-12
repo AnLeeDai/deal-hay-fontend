@@ -10,12 +10,16 @@ const uploadFallback =
 
 function imageUploadError(
   field: string,
+  fileName: string,
   message: string,
   errors?: ValidationErrors
 ): UploadError {
   const messages = errors ? Object.values(errors).flat() : []
-  return new UploadError(message, {
-    [field]: messages.length > 0 ? messages : [message],
+  const prefix = fileName ? `${fileName}: ` : ""
+  return new UploadError(`${prefix}${message}`, {
+    [field]: (messages.length > 0 ? messages : [message]).map(
+      (detail) => `${prefix}${detail}`
+    ),
   })
 }
 
@@ -26,7 +30,7 @@ export async function transformImageFile(
 ): Promise<File> {
   const parsed = imageFileSchema("Ảnh không hợp lệ.").safeParse(file)
   if (!parsed.success) {
-    throw imageUploadError(field, parsed.error.issues[0].message, {
+    throw imageUploadError(field, file.name, parsed.error.issues[0].message, {
       image: parsed.error.issues.map((issue) => issue.message),
     })
   }
@@ -39,6 +43,7 @@ export async function transformImageFile(
     if (!grant.success || !grant.data) {
       throw imageUploadError(
         field,
+        file.name,
         grant.message || uploadFallback,
         grant.errors
       )
@@ -46,7 +51,7 @@ export async function transformImageFile(
 
     const url = new URL(grant.data.url)
     if (url.protocol !== "https:" && url.protocol !== "http:") {
-      throw imageUploadError(field, uploadFallback)
+      throw imageUploadError(field, file.name, uploadFallback)
     }
 
     const payload = new FormData()
@@ -73,6 +78,7 @@ export async function transformImageFile(
         : undefined
       throw imageUploadError(
         field,
+        file.name,
         error?.message || uploadFallback,
         error?.errors
       )
@@ -86,7 +92,7 @@ export async function transformImageFile(
       header.slice(0, 4) !== "RIFF" ||
       header.slice(8, 12) !== "WEBP"
     ) {
-      throw imageUploadError(field, "Phản hồi xử lý ảnh không hợp lệ.")
+      throw imageUploadError(field, file.name, "Phản hồi xử lý ảnh không hợp lệ.")
     }
 
     const name = `${file.name.replace(/\.[^/.]+$/, "") || "image"}.webp`
@@ -96,7 +102,7 @@ export async function transformImageFile(
     })
   } catch (error) {
     if (error instanceof UploadError) throw error
-    throw imageUploadError(field, uploadFallback)
+    throw imageUploadError(field, file.name, uploadFallback)
   }
 }
 
