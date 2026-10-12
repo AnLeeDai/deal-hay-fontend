@@ -56,6 +56,7 @@ export function useChatRealtime({
     let disposed = false
     let instance: ReverbEcho | undefined
     let unsubscribeConnection: (() => void) | undefined
+    let previousConnectionStatus: ConnectionStatus | undefined
 
     void Promise.all([import("laravel-echo"), import("pusher-js")])
       .then(([{ default: EchoClient }, { default: Pusher }]) => {
@@ -76,7 +77,6 @@ export function useChatRealtime({
         })
 
         setEcho(instance)
-        setStatus(instance.connectionStatus())
         instance
           .private(`user-chat.${currentUserId}`)
           .listen(".message.sent", (payload: unknown) => {
@@ -91,16 +91,31 @@ export function useChatRealtime({
           })
           .error(() => setStatus("failed"))
 
-        unsubscribeConnection = instance.connector.onConnectionChange(
-          (nextStatus) => {
-            setStatus(nextStatus)
-            setSocketId(instance?.socketId())
+        const synchronizeConnection = (nextStatus: ConnectionStatus) => {
+          if (disposed) return
 
-            if (nextStatus !== "connected") return
-            if (hasConnected.current) callbacks.current.onReconnect()
-            hasConnected.current = true
+          const previousStatus = previousConnectionStatus
+          previousConnectionStatus = nextStatus
+          setStatus(nextStatus)
+          setSocketId(
+            nextStatus === "connected" ? instance?.socketId() : undefined
+          )
+
+          if (nextStatus !== "connected") {
+            if (previousStatus === "connected") {
+              callbacks.current.onPresenceChange(false)
+            }
+            return
           }
+          if (previousStatus === "connected") return
+          if (hasConnected.current) callbacks.current.onReconnect()
+          hasConnected.current = true
+        }
+
+        unsubscribeConnection = instance.connector.onConnectionChange(
+          synchronizeConnection
         )
+        synchronizeConnection(instance.connectionStatus())
       })
       .catch(() => {
         if (!disposed) setStatus("failed")
