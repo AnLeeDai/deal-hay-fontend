@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useTransition } from "react"
+import { useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   BadgeCheckIcon,
@@ -60,6 +60,11 @@ import {
   reviewProductSchema,
   type ReviewProductValues,
 } from "@/modules/public/schemas/reviews"
+import {
+  defaultProductVariant,
+  selectProductVariant,
+  variantHasOption,
+} from "@/modules/public/lib/variant-selection"
 import type { PublicProduct, PublicShop } from "@/types/catalog"
 
 function ReviewProductForm({
@@ -192,6 +197,18 @@ export function ProductInteractions({
   const [isPending, startTransition] = useTransition()
   const [isChatPending, startChatTransition] = useTransition()
   const router = useRouter()
+  const [selectedVariantId, setSelectedVariantId] = useState(
+    () => defaultProductVariant(product.variants)?.id
+  )
+  const hasVariants = product.has_variants || product.variants.length > 0
+  const selectedVariant = hasVariants
+    ? (product.variants.find(
+        (variant) => variant.id === selectedVariantId && variant.is_active
+      ) ?? defaultProductVariant(product.variants))
+    : undefined
+  const displayedPrice = selectedVariant?.price ?? product.price
+  const displayedStock =
+    selectedVariant?.stock ?? (hasVariants ? 0 : product.stock)
 
   const runAction = (
     action: () => Promise<unknown>,
@@ -213,8 +230,17 @@ export function ProductInteractions({
       return
     }
 
+    if (hasVariants && !selectedVariant) {
+      toast.error("Sản phẩm chưa có biến thể đang bán để tư vấn.")
+      return
+    }
+
     startChatTransition(async () => {
-      const state = await startChatAction(shop.code, product.id)
+      const state = await startChatAction(
+        shop.code,
+        product.id,
+        selectedVariant?.id
+      )
 
       if (state.success && state.data) {
         toast.success(state.message)
@@ -240,44 +266,102 @@ export function ProductInteractions({
             {product.name}
           </CardTitle>
           <CardDescription>
-            Mã sản phẩm: {product.sku || "Đang cập nhật"}
+            {selectedVariant ? "SKU biến thể" : "Mã sản phẩm"}:{" "}
+            {selectedVariant?.sku || product.sku || "Đang cập nhật"}
           </CardDescription>
         </CardHeader>
         <CardContent className="gap-5">
-          <p className="text-3xl font-semibold text-primary">
-            {formatCurrency(product.price)}
+          <p aria-live="polite" className="text-3xl font-semibold text-primary">
+            {formatCurrency(displayedPrice)}
           </p>
           <div className="flex items-center justify-between rounded-lg bg-muted px-4 py-3">
             <span className="flex items-center gap-2 text-sm">
               <PackageCheckIcon className="size-4 text-primary" /> Tình trạng
             </span>
-            <Badge variant={product.stock > 0 ? "secondary" : "destructive"}>
-              {product.stock > 0
-                ? `Còn ${product.stock} sản phẩm`
+            <Badge
+              aria-live="polite"
+              variant={displayedStock > 0 ? "secondary" : "destructive"}
+            >
+              {displayedStock > 0
+                ? `Còn ${displayedStock} sản phẩm`
                 : "Tạm hết hàng"}
             </Badge>
           </div>
 
-          {product.options.length > 0 ? (
+          {hasVariants && product.options.length > 0 ? (
             <div className="space-y-3">
               {product.options.map((option) => (
-                <div key={option.id ?? option.name} className="space-y-2">
-                  <p className="text-sm font-medium">{option.name}</p>
+                <fieldset key={option.id ?? option.name} className="space-y-2">
+                  <legend className="text-sm font-medium">{option.name}</legend>
                   <div className="flex flex-wrap gap-2">
-                    {option.values.map((value) => (
-                      <Badge key={value} variant="outline">
-                        {value}
-                      </Badge>
-                    ))}
+                    {option.values.map((value) => {
+                      const candidate = selectProductVariant(
+                        product.variants,
+                        selectedVariant,
+                        option.name,
+                        value
+                      )
+                      const isSelected = selectedVariant
+                        ? variantHasOption(selectedVariant, option.name, value)
+                        : false
+
+                      return (
+                        <Button
+                          key={value}
+                          aria-pressed={isSelected}
+                          disabled={!candidate || isChatPending}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          onClick={() => setSelectedVariantId(candidate?.id)}
+                        >
+                          {value}
+                        </Button>
+                      )
+                    })}
                   </div>
-                </div>
+                </fieldset>
               ))}
             </div>
           ) : null}
 
+          {hasVariants && product.options.length === 0 ? (
+            <div
+              aria-label="Biến thể sản phẩm"
+              className="flex flex-wrap gap-2"
+              role="group"
+            >
+              {product.variants
+                .filter((variant) => variant.is_active)
+                .map((variant) => (
+                  <Button
+                    key={variant.id}
+                    aria-pressed={selectedVariant?.id === variant.id}
+                    disabled={isChatPending}
+                    type="button"
+                    variant={
+                      selectedVariant?.id === variant.id ? "default" : "outline"
+                    }
+                    onClick={() => setSelectedVariantId(variant.id)}
+                  >
+                    {variant.variant_label || variant.sku}
+                  </Button>
+                ))}
+            </div>
+          ) : null}
+
+          {hasVariants ? (
+            <p aria-live="polite" className="text-sm text-muted-foreground">
+              {selectedVariant
+                ? `Đã chọn: ${selectedVariant.variant_label || Object.values(selectedVariant.option_values).join(" · ") || selectedVariant.sku}`
+                : "Sản phẩm chưa có biến thể đang bán."}
+            </p>
+          ) : null}
+
           <Button
             className="w-full"
-            disabled={isPending || isChatPending}
+            disabled={
+              isPending || isChatPending || (hasVariants && !selectedVariant)
+            }
             size="lg"
             onClick={openProductChat}
           >

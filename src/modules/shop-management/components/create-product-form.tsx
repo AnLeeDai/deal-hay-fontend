@@ -8,7 +8,12 @@ import {
   RefreshCwIcon,
   Trash2Icon,
 } from "lucide-react"
-import { useFieldArray, useForm, useWatch } from "react-hook-form"
+import {
+  useFieldArray,
+  useForm,
+  useWatch,
+  type FieldPath,
+} from "react-hook-form"
 import { toast } from "sonner"
 
 import { FormSelect } from "@/components/form-select"
@@ -34,6 +39,12 @@ import { IMAGE_UPLOAD_ACCEPT } from "@/lib/validation"
 import { prepareImageUploads } from "@/lib/image-upload"
 import type { ShopCategory } from "@/types/shop"
 import { createProductAction } from "@/modules/shop-management/actions"
+import {
+  buildProductVariants,
+  productFormErrors,
+  validateProductOptions,
+  variantsMatchOptions,
+} from "@/modules/shop-management/lib/product-variants"
 import {
   createProductSchema,
   type CreateProductValues,
@@ -63,11 +74,23 @@ function optionalNumericValue(value: string): number | "" {
   return value === "" ? "" : Number(value)
 }
 
-function normalizedCombination(values: Record<string, string>): string {
-  return Object.entries(values)
-    .sort(([left], [right]) => left.localeCompare(right, "vi"))
-    .map(([name, value]) => `${name.trim()}=${value.trim()}`)
-    .join("|")
+function fieldErrorMessage(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") return undefined
+  if ("message" in error && typeof error.message === "string")
+    return error.message
+  for (const [key, value] of Object.entries(error)) {
+    if (key === "ref") continue
+    const message = fieldErrorMessage(value)
+    if (message) return message
+  }
+  return undefined
+}
+
+function arrayErrorMessage(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") return undefined
+  if ("message" in error && typeof error.message === "string")
+    return error.message
+  return "root" in error ? fieldErrorMessage(error.root) : undefined
 }
 
 function variantLabel(values: Record<string, string>): string {
@@ -98,128 +121,58 @@ export function CreateProductForm({
   })
   const variants = useWatch({ control: form.control, name: "variants" }) ?? []
 
+  const options = useWatch({ control: form.control, name: "options" }) ?? []
+  const catalog = validateProductOptions(options)
+  const variantsNeedUpdate =
+    hasVariants &&
+    variants.length > 0 &&
+    (!catalog.success ||
+      !variantsMatchOptions(
+        catalog.options,
+        catalog.combinationCount,
+        variants
+      ))
+  const optionsError = arrayErrorMessage(form.formState.errors.options)
+  const variantsError = arrayErrorMessage(form.formState.errors.variants)
+
   const buildVariants = () => {
-    const options = form.getValues("options")
     form.clearErrors(["options", "variants"])
-
-    if (options.length === 0) {
-      form.setError("options", {
-        type: "manual",
-        message: "Vui lòng thêm ít nhất một thuộc tính sản phẩm.",
+    const result = buildProductVariants(
+      form.getValues("options"),
+      form.getValues("variants")
+    )
+    if (!result.success) {
+      result.issues.forEach((issue) => {
+        form.setError(issue.path.join(".") as FieldPath<CreateProductValues>, {
+          type: "manual",
+          message: issue.message,
+        })
       })
       return
     }
 
-    const seenNames = new Set<string>()
-    const normalizedOptions: Array<{ name: string; values: string[] }> = []
-    let isValid = true
-
-    options.forEach((option, optionIndex) => {
-      const name = option.name.trim()
-      const nameKey = name.toLocaleLowerCase("vi")
-      const values = option.values
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean)
-      const normalizedValues = values.map((value) =>
-        value.toLocaleLowerCase("vi")
-      )
-
-      if (!name) {
-        form.setError(`options.${optionIndex}.name`, {
-          type: "manual",
-          message: "Vui lòng nhập tên thuộc tính.",
-        })
-        isValid = false
-      } else if (seenNames.has(nameKey)) {
-        form.setError(`options.${optionIndex}.name`, {
-          type: "manual",
-          message: "Tên thuộc tính không được trùng nhau.",
-        })
-        isValid = false
-      }
-
-      if (values.length === 0) {
-        form.setError(`options.${optionIndex}.values`, {
-          type: "manual",
-          message: "Nhập ít nhất một giá trị, ngăn cách bằng dấu phẩy.",
-        })
-        isValid = false
-      } else if (new Set(normalizedValues).size !== normalizedValues.length) {
-        form.setError(`options.${optionIndex}.values`, {
-          type: "manual",
-          message: "Giá trị thuộc tính không được trùng nhau.",
-        })
-        isValid = false
-      }
-
-      seenNames.add(nameKey)
-      normalizedOptions.push({ name, values })
-    })
-
-    if (!isValid) return
-
-    const combinations = normalizedOptions.reduce<Record<string, string>[]>(
-      (current, option) =>
-        current.flatMap((combination) =>
-          option.values.map((value) => ({
-            ...combination,
-            [option.name]: value,
-          }))
-        ),
-      [{}]
-    )
-
-    if (combinations.length > 100) {
-      form.setError("variants", {
-        type: "manual",
-        message:
-          "Các thuộc tính tạo ra hơn 100 biến thể. Hãy giảm bớt giá trị.",
+    result.options.forEach((option, index) => {
+      form.setValue(`options.${index}.name`, option.name, { shouldDirty: true })
+      form.setValue(`options.${index}.values`, option.values.join(", "), {
+        shouldDirty: true,
       })
-      return
-    }
-
-    const existingVariants = new Map(
-      form
-        .getValues("variants")
-        .map((variant) => [
-          normalizedCombination(variant.option_values),
-          variant,
-        ])
-    )
-    const nextVariants = combinations.map((optionValues, index) => {
-      const existing = existingVariants.get(normalizedCombination(optionValues))
-
-      return {
-        option_values: optionValues,
-        price: existing?.price ?? "",
-        stock: existing?.stock ?? 0,
-        is_active: existing?.is_active ?? true,
-        is_default: existing?.is_default ?? index === 0,
-      }
     })
-
-    if (!nextVariants.some((variant) => variant.is_default)) {
-      nextVariants[0].is_default = true
-    }
-
-    variantFields.replace(nextVariants)
-    toast.success(`Đã tạo ${nextVariants.length} biến thể.`)
+    variantFields.replace(result.variants)
+    toast.success(`Đã tạo ${result.variants.length} biến thể.`)
   }
 
   const setDefaultVariant = (selectedIndex: number) => {
     variantFields.fields.forEach((_, index) => {
       form.setValue(`variants.${index}.is_default`, index === selectedIndex, {
         shouldDirty: true,
-        shouldValidate: true,
       })
       if (index === selectedIndex) {
         form.setValue(`variants.${index}.is_active`, true, {
           shouldDirty: true,
-          shouldValidate: true,
         })
       }
     })
+    void form.trigger("variants")
   }
 
   const onSubmit = form.handleSubmit((values) => {
@@ -247,7 +200,10 @@ export function CreateProductForm({
       const state = await runUploadAction(async () =>
         createProductAction(await prepareImageUploads(formData, "product"))
       )
-      const hasFieldErrors = applyServerErrors(state.errors, form.setError)
+      const hasFieldErrors = applyServerErrors(
+        productFormErrors(state.errors),
+        form.setError
+      )
 
       if (state.success) {
         toast.success(state.message)
@@ -517,6 +473,7 @@ export function CreateProductForm({
                       onBlur={field.onBlur}
                       onCheckedChange={(checked) => {
                         field.onChange(checked)
+                        form.clearErrors(["stock", "options", "variants"])
                         if (checked && optionFields.fields.length === 0) {
                           optionFields.append({ name: "", values: "" })
                         }
@@ -625,15 +582,23 @@ export function CreateProductForm({
                   </div>
                 ))}
               </div>
-              {form.formState.errors.options?.message ? (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.options.message}
+              {optionsError ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {optionsError}
                 </p>
               ) : null}
 
               <Button type="button" variant="secondary" onClick={buildVariants}>
                 <RefreshCwIcon /> Tạo / cập nhật danh sách biến thể
               </Button>
+
+              {variantsNeedUpdate ? (
+                <p className="text-sm text-destructive" role="alert">
+                  Thuộc tính đã thay đổi. Hãy tạo / cập nhật danh sách biến thể
+                  trước khi đăng. Giá và tồn kho của các tổ hợp còn lại sẽ được
+                  giữ.
+                </p>
+              ) : null}
 
               {variantFields.fields.length > 0 ? (
                 <div className="space-y-3">
@@ -647,6 +612,14 @@ export function CreateProductForm({
                   </div>
                   {variantFields.fields.map((variant, variantIndex) => {
                     const current = variants[variantIndex] ?? variant
+                    const variantErrors =
+                      form.formState.errors.variants?.[variantIndex]
+                    const optionValuesError = fieldErrorMessage(
+                      variantErrors?.option_values
+                    )
+                    const defaultError = fieldErrorMessage(
+                      variantErrors?.is_default
+                    )
                     return (
                       <div
                         key={variant.id}
@@ -676,6 +649,11 @@ export function CreateProductForm({
                             </Button>
                           )}
                         </div>
+                        {optionValuesError || defaultError ? (
+                          <p className="text-sm text-destructive" role="alert">
+                            {optionValuesError || defaultError}
+                          </p>
+                        ) : null}
                         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                           <FormField
                             control={form.control}
@@ -734,17 +712,25 @@ export function CreateProductForm({
                             control={form.control}
                             name={`variants.${variantIndex}.is_active`}
                             render={({ field }) => (
-                              <FormItem className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 sm:mt-6">
-                                <FormLabel className="cursor-pointer">
-                                  Đang bán
-                                </FormLabel>
-                                <FormControl>
-                                  <Switch
-                                    checked={field.value}
-                                    onBlur={field.onBlur}
-                                    onCheckedChange={field.onChange}
-                                  />
-                                </FormControl>
+                              <FormItem className="rounded-lg border px-3 py-2 sm:mt-6">
+                                <div className="flex items-center justify-between gap-3">
+                                  <FormLabel className="cursor-pointer">
+                                    Đang bán
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value}
+                                      disabled={current.is_default}
+                                      onBlur={field.onBlur}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                </div>
+                                {current.is_default ? (
+                                  <FormDescription>
+                                    Đổi biến thể mặc định trước khi ngừng bán.
+                                  </FormDescription>
+                                ) : null}
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -761,9 +747,9 @@ export function CreateProductForm({
                   tồn kho riêng. SKU sẽ được hệ thống tự động tạo.
                 </div>
               )}
-              {form.formState.errors.variants?.message ? (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.variants.message}
+              {variantsError ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {variantsError}
                 </p>
               ) : null}
             </div>

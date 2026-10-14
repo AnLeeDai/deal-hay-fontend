@@ -16,6 +16,10 @@ import {
 } from "@/api/profile/mutations"
 import type { ActionState } from "@/types/forms"
 import {
+  canonicalVariantValues,
+  normalizeCatalogText,
+} from "@/modules/shop-management/lib/product-variants"
+import {
   adjustInventorySchema,
   createCouponSchema,
   createProductSchema,
@@ -39,7 +43,11 @@ export async function createProductAction(
 
   try {
     const rawCatalog = formData.get("catalog")
-    catalog = rawCatalog ? JSON.parse(String(rawCatalog)) : {}
+    const decoded: unknown = rawCatalog ? JSON.parse(String(rawCatalog)) : {}
+    if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
+      throw new Error("Invalid product catalog")
+    }
+    catalog = decoded as Record<string, unknown>
   } catch {
     return {
       success: false,
@@ -65,7 +73,14 @@ export async function createProductAction(
     return {
       success: false,
       message: "Vui lòng kiểm tra lại thông tin sản phẩm.",
-      errors: parsed.error.flatten().fieldErrors,
+      errors: parsed.error.issues.reduce<Record<string, string[]>>(
+        (errors, issue) => {
+          const path = issue.path.join(".")
+          ;(errors[path] ??= []).push(issue.message)
+          return errors
+        },
+        {}
+      ),
     }
   }
 
@@ -86,20 +101,25 @@ export async function createProductAction(
   })
 
   if (parsed.data.has_variants) {
-    parsed.data.options.forEach((option, optionIndex) => {
-      const values = option.values
+    const options = parsed.data.options.map((option) => ({
+      name: normalizeCatalogText(option.name),
+      values: option.values
         .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean)
+        .map(normalizeCatalogText)
+        .filter(Boolean),
+    }))
 
-      payload.set(`options[${optionIndex}][name]`, option.name.trim())
-      values.forEach((value, valueIndex) => {
+    options.forEach((option, optionIndex) => {
+      payload.set(`options[${optionIndex}][name]`, option.name)
+      option.values.forEach((value, valueIndex) => {
         payload.set(`options[${optionIndex}][values][${valueIndex}]`, value)
       })
     })
 
     parsed.data.variants.forEach((variant, variantIndex) => {
-      Object.entries(variant.option_values).forEach(([name, value]) => {
+      Object.entries(
+        canonicalVariantValues(options, variant.option_values)
+      ).forEach(([name, value]) => {
         payload.set(`variants[${variantIndex}][option_values][${name}]`, value)
       })
       if (variant.price !== "") {

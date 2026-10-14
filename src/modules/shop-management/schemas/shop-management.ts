@@ -5,6 +5,12 @@ import {
   PRODUCT_IMAGES_UPLOAD_MAX_BYTES,
   requiredText,
 } from "@/lib/validation"
+import {
+  validateProductOptions,
+  variantsMatchOptions,
+  type ProductOptionDraft,
+  type ProductVariantDraft,
+} from "@/modules/shop-management/lib/product-variants"
 
 const optionalLabelSchema = z.union([
   z.string().trim().max(80, "Nhãn sản phẩm không được vượt quá 80 ký tự."),
@@ -37,60 +43,73 @@ const optionalPositiveIntSchema = (
     z.undefined(),
   ])
 
+const productStockSchema = z
+  .number({ error: "Tồn kho phải là số nguyên." })
+  .int("Tồn kho phải là số nguyên.")
+  .min(0, "Tồn kho không được âm.")
+  .max(999999, "Tồn kho quá lớn.")
+const productOptionsSchema = z.array(
+  z.object({ name: z.string(), values: z.string() })
+)
+const productVariantsSchema = z
+  .array(
+    z.object({
+      option_values: z.record(z.string(), z.string()),
+      price: optionalVariantPriceSchema,
+      stock: z
+        .number({ error: "Tồn kho biến thể phải là số nguyên." })
+        .int("Tồn kho biến thể phải là số nguyên.")
+        .min(0, "Tồn kho biến thể không được âm.")
+        .max(999999, "Tồn kho biến thể quá lớn."),
+      is_active: z.boolean(),
+      is_default: z.boolean(),
+    })
+  )
+  .max(100, "Mỗi sản phẩm có tối đa 100 biến thể.")
+const productFields = {
+  name: requiredText("Vui lòng nhập tên sản phẩm.").max(
+    255,
+    "Tên sản phẩm không được vượt quá 255 ký tự."
+  ),
+  category: requiredText("Vui lòng chọn danh mục.").max(
+    120,
+    "Danh mục không được vượt quá 120 ký tự."
+  ),
+  price: z
+    .number({ error: "Giá bán phải là số nguyên." })
+    .int("Giá bán phải là số nguyên.")
+    .min(1000, "Giá bán tối thiểu là 1.000đ.")
+    .max(999999999, "Giá bán quá lớn."),
+  label: optionalLabelSchema,
+  description: optionalDescriptionSchema,
+  image: imageFileSchema("Vui lòng tải ảnh đại diện sản phẩm."),
+  gallery_images: z
+    .array(imageFileSchema("Ảnh bổ sung không hợp lệ."))
+    .max(50, "Mỗi sản phẩm được tải tối đa 50 ảnh bổ sung."),
+}
+
 export const createProductSchema = z
-  .object({
-    name: requiredText("Vui lòng nhập tên sản phẩm.").max(
-      255,
-      "Tên sản phẩm không được vượt quá 255 ký tự."
-    ),
-    category: requiredText("Vui lòng chọn danh mục.").max(
-      120,
-      "Danh mục không được vượt quá 120 ký tự."
-    ),
-    price: z
-      .number({ error: "Giá bán phải là số nguyên." })
-      .int("Giá bán phải là số nguyên.")
-      .min(1000, "Giá bán tối thiểu là 1.000đ.")
-      .max(999999999, "Giá bán quá lớn."),
-    stock: z
-      .number({ error: "Tồn kho phải là số nguyên." })
-      .int("Tồn kho phải là số nguyên.")
-      .min(0, "Tồn kho không được âm.")
-      .max(999999, "Tồn kho quá lớn."),
-    label: optionalLabelSchema,
-    description: optionalDescriptionSchema,
-    image: imageFileSchema("Vui lòng tải ảnh đại diện sản phẩm."),
-    gallery_images: z
-      .array(imageFileSchema("Ảnh bổ sung không hợp lệ."))
-      .max(50, "Mỗi sản phẩm được tải tối đa 50 ảnh bổ sung."),
-    has_variants: z.boolean(),
-    options: z
-      .array(
-        z.object({
-          name: requiredText("Vui lòng nhập tên thuộc tính.").max(
-            80,
-            "Tên thuộc tính không được vượt quá 80 ký tự."
-          ),
-          values: requiredText("Vui lòng nhập ít nhất một giá trị thuộc tính."),
-        })
-      )
-      .max(3, "Mỗi sản phẩm có tối đa 3 thuộc tính."),
-    variants: z
-      .array(
-        z.object({
-          option_values: z.record(z.string(), z.string()),
-          price: optionalVariantPriceSchema,
-          stock: z
-            .number({ error: "Tồn kho biến thể phải là số nguyên." })
-            .int("Tồn kho biến thể phải là số nguyên.")
-            .min(0, "Tồn kho biến thể không được âm.")
-            .max(999999, "Tồn kho biến thể quá lớn."),
-          is_active: z.boolean(),
-          is_default: z.boolean(),
-        })
-      )
-      .max(100, "Mỗi sản phẩm có tối đa 100 biến thể."),
-  })
+  .discriminatedUnion("has_variants", [
+    z.object({
+      ...productFields,
+      has_variants: z.literal(false),
+      stock: productStockSchema,
+      options: z
+        .custom<ProductOptionDraft[]>()
+        .transform(() => [] as ProductOptionDraft[]),
+      variants: z
+        .custom<ProductVariantDraft[]>()
+        .transform(() => [] as ProductVariantDraft[]),
+    }),
+    z.object({
+      ...productFields,
+      has_variants: z.literal(true),
+      // The simple-product stock input is hidden in variant mode.
+      stock: z.custom<number>().transform(() => 0),
+      options: productOptionsSchema,
+      variants: productVariantsSchema,
+    }),
+  ])
   .superRefine((value, context) => {
     const totalImageBytes = [value.image, ...value.gallery_images].reduce(
       (total, file) => total + file.size,
@@ -104,128 +123,53 @@ export const createProductSchema = z
       })
     }
 
-    if (!value.has_variants) {
-      return
-    }
+    if (!value.has_variants) return
 
-    if (value.options.length === 0) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["options"],
-        message: "Vui lòng thêm ít nhất một thuộc tính sản phẩm.",
-      })
+    const catalog = validateProductOptions(value.options)
+    if (!catalog.success) {
+      catalog.issues.forEach((issue) =>
+        context.addIssue({ code: "custom", ...issue })
+      )
     }
 
     if (value.variants.length === 0) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["variants"],
         message: "Hãy tạo danh sách biến thể từ các thuộc tính đã nhập.",
       })
+    } else if (
+      catalog.success &&
+      !variantsMatchOptions(
+        catalog.options,
+        catalog.combinationCount,
+        value.variants
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["variants"],
+        message:
+          "Thuộc tính đã thay đổi. Hãy tạo / cập nhật danh sách biến thể.",
+      })
     }
 
-    const optionNames = new Set<string>()
-    const allowedValues = new Map<string, Set<string>>()
-
-    value.options.forEach((option, optionIndex) => {
-      const normalizedName = option.name.trim().toLocaleLowerCase("vi")
-      const values = option.values
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean)
-      const normalizedValues = values.map((item) =>
-        item.toLocaleLowerCase("vi")
-      )
-
-      if (optionNames.has(normalizedName)) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["options", optionIndex, "name"],
-          message: "Tên thuộc tính không được trùng nhau.",
-        })
-      }
-      optionNames.add(normalizedName)
-
-      if (values.length === 0) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["options", optionIndex, "values"],
-          message: "Vui lòng nhập ít nhất một giá trị thuộc tính.",
-        })
-      }
-
-      if (new Set(normalizedValues).size !== normalizedValues.length) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["options", optionIndex, "values"],
-          message: "Giá trị thuộc tính không được trùng nhau.",
-        })
-      }
-
-      allowedValues.set(normalizedName, new Set(normalizedValues))
-    })
-
-    const combinations = new Set<string>()
     let defaultCount = 0
-
     value.variants.forEach((variant, variantIndex) => {
-      const entries = Object.entries(variant.option_values)
-      const combination = value.options.map((option) => {
-        const entry = entries.find(
-          ([name]) =>
-            name.trim().toLocaleLowerCase("vi") ===
-            option.name.trim().toLocaleLowerCase("vi")
-        )
-        const normalizedValue = entry?.[1].trim().toLocaleLowerCase("vi")
-        const normalizedName = option.name.trim().toLocaleLowerCase("vi")
-
-        if (
-          !normalizedValue ||
-          !allowedValues.get(normalizedName)?.has(normalizedValue)
-        ) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["variants", variantIndex, "option_values"],
-            message: `Giá trị của thuộc tính ${option.name} không hợp lệ.`,
-          })
-        }
-
-        return `${normalizedName}=${normalizedValue ?? ""}`
-      })
-
-      if (entries.length !== value.options.length) {
+      if (!variant.is_default) return
+      defaultCount += 1
+      if (!variant.is_active) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["variants", variantIndex, "option_values"],
-          message: "Biến thể chưa khớp với danh sách thuộc tính.",
+          code: "custom",
+          path: ["variants", variantIndex, "is_active"],
+          message: "Biến thể mặc định phải đang được bán.",
         })
-      }
-
-      const key = combination.join("|")
-      if (combinations.has(key)) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["variants", variantIndex, "option_values"],
-          message: "Tổ hợp biến thể không được trùng nhau.",
-        })
-      }
-      combinations.add(key)
-
-      if (variant.is_default) {
-        defaultCount += 1
-        if (!variant.is_active) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["variants", variantIndex, "is_active"],
-            message: "Biến thể mặc định phải đang được bán.",
-          })
-        }
       }
     })
 
     if (value.variants.length > 0 && defaultCount !== 1) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["variants"],
         message: "Sản phẩm phải có đúng một biến thể mặc định đang bán.",
       })
