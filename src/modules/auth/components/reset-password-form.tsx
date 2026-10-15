@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
 import { FormSubmitButton } from "@/components/form-submit-button"
+import { PasswordInput } from "@/components/password-input"
 import {
   Card,
   CardContent,
@@ -119,11 +120,7 @@ export function ResetPasswordForm({
                 <FormItem>
                   <FormLabel>Mật khẩu mới</FormLabel>
                   <FormControl>
-                    <Input
-                      autoComplete="new-password"
-                      type="password"
-                      {...field}
-                    />
+                    <PasswordInput autoComplete="new-password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -136,11 +133,7 @@ export function ResetPasswordForm({
                 <FormItem>
                   <FormLabel>Xác nhận mật khẩu</FormLabel>
                   <FormControl>
-                    <Input
-                      autoComplete="new-password"
-                      type="password"
-                      {...field}
-                    />
+                    <PasswordInput autoComplete="new-password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

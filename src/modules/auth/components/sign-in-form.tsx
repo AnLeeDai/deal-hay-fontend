@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
 import { FormSubmitButton } from "@/components/form-submit-button"
+import { PasswordInput } from "@/components/password-input"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -127,9 +128,8 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
                 <FormItem>
                   <FormLabel>Mật khẩu</FormLabel>
                   <FormControl>
-                    <Input
+                    <PasswordInput
                       autoComplete="current-password"
-                      type="password"
                       {...field}
                       disabled={isPending}
                       onChange={(event) => {

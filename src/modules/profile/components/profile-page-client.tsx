@@ -10,6 +10,7 @@ import { KeyRoundIcon, StoreIcon, UserRoundIcon } from "lucide-react"
 import { FormSubmitButton } from "@/components/form-submit-button"
 import { AddressFields } from "@/components/address-fields"
 import { PageHeader } from "@/components/layout/page-header"
+import { PasswordInput } from "@/components/password-input"
 import { SelectedFilePreview } from "@/components/selected-file-preview"
 import {
   Card,
@@ -197,11 +198,7 @@ function PasswordForm() {
             <FormItem>
               <FormLabel>Mật khẩu hiện tại</FormLabel>
               <FormControl>
-                <Input
-                  autoComplete="current-password"
-                  type="password"
-                  {...field}
-                />
+                <PasswordInput autoComplete="current-password" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -214,7 +211,7 @@ function PasswordForm() {
             <FormItem>
               <FormLabel>Mật khẩu mới</FormLabel>
               <FormControl>
-                <Input autoComplete="new-password" type="password" {...field} />
+                <PasswordInput autoComplete="new-password" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -227,7 +224,7 @@ function PasswordForm() {
             <FormItem>
               <FormLabel>Xác nhận mật khẩu mới</FormLabel>
               <FormControl>
-                <Input autoComplete="new-password" type="password" {...field} />
+                <PasswordInput autoComplete="new-password" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
