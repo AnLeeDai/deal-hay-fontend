@@ -57,7 +57,6 @@ export type PublicProduct = {
   display_price?: number
   old_price?: number | null
   display_original_price?: number
-  advertisement_available?: boolean
   video_url?: string | null
   stock: number
   has_variants: boolean

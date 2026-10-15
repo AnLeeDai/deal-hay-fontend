@@ -322,8 +322,8 @@ export function CreateProductForm({
                     />
                   </FormControl>
                   <FormDescription>
-                    Giá gốc phải cao hơn giá bán. Quảng cáo và mã giảm giá do hệ
-                    thống tự động quản lý.
+                    Giá gốc phải cao hơn giá bán. Để trống nếu sản phẩm không có
+                    giá gốc.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

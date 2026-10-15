@@ -287,27 +287,9 @@ export function ProductInteractions({
         </CardHeader>
         <CardContent className="gap-5">
           <div aria-live="polite" className="space-y-1">
-            {product.advertisement_available &&
-            regularPrice > displayedPrice ? (
-              <>
-                <p className="text-sm text-muted-foreground line-through">
-                  {formatCurrency(regularPrice)}
-                </p>
-                <p className="text-3xl font-semibold text-primary">
-                  {formatCurrency(displayedPrice)}{" "}
-                  <Badge>
-                    -{Math.round((1 - displayedPrice / regularPrice) * 100)}%
-                  </Badge>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Giá ưu đãi tham khảo; có thể giảm thêm bằng mã tích lũy
-                </p>
-              </>
-            ) : (
-              <p className="text-3xl font-semibold text-primary">
-                {formatCurrency(regularPrice)}
-              </p>
-            )}
+            <p className="text-3xl font-semibold text-primary">
+              {formatCurrency(regularPrice)}
+            </p>
           </div>
           <div className="flex items-center justify-between rounded-lg bg-muted px-4 py-3">
             <span className="flex items-center gap-2 text-sm">

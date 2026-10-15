@@ -65,8 +65,8 @@ export function ProductPricingForm({ product }: { product: ShopProduct }) {
         <DialogHeader>
           <DialogTitle>Giá và ưu đãi sản phẩm</DialogTitle>
           <DialogDescription>
-            {product.name}. Shop thiết lập giá sản phẩm. Quảng cáo và giá trị mã
-            giảm giá được hệ thống tự động quản lý.
+            {product.name}. Cập nhật giá bán, giá gốc tùy chọn và video giới
+            thiệu sản phẩm.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -110,8 +110,7 @@ export function ProductPricingForm({ product }: { product: ShopProduct }) {
             </div>
           ))}
           <p className="text-xs text-muted-foreground">
-            Giá gốc phải cao hơn giá bán. Mã giảm giá từ quảng cáo được hệ thống
-            tính khi khách đặt hàng.
+            Giá gốc phải cao hơn giá bán. Video giới thiệu sản phẩm là tùy chọn.
           </p>
           <Button className="w-full" type="submit" disabled={pending}>
             {pending ? "Đang lưu..." : "Lưu giá và ưu đãi"}

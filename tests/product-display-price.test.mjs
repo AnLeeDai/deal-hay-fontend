@@ -90,17 +90,16 @@ test("older API responses and simple products retain their base price", () => {
   assert.ok(renderCard({}).includes(formatCurrency(50000)))
 })
 
-test("an available ad offer shows the regular price, sale price, percentage, and condition", () => {
+test("a legacy ad availability flag cannot advertise an inactive reward price", () => {
   const rendered = renderCard({
     display_price: 80000,
     display_original_price: 100000,
     advertisement_available: true,
   })
   assert.ok(rendered.includes(formatCurrency(100000)))
-  assert.ok(rendered.includes(formatCurrency(80000)))
-  assert.ok(rendered.includes("20"))
-  assert.ok(rendered.includes("Giá khi dùng mã ưu đãi"))
-  assert.ok(rendered.includes("line-through"))
+  assert.ok(!rendered.includes(formatCurrency(80000)))
+  assert.ok(!rendered.includes("Giá khi dùng mã ưu đãi"))
+  assert.ok(!rendered.includes("line-through"))
 })
 
 test("an unavailable advertisement offers only the regular purchase price", () => {

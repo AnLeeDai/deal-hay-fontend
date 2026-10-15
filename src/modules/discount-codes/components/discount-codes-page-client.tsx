@@ -64,7 +64,7 @@ export function DiscountCodesPageClient({
     <div className="space-y-7">
       <PageHeader
         title="Mã giảm giá của tôi"
-        description="Tích lũy mã sau các lượt quảng cáo được xác nhận. Bạn có thể cộng nhiều mã cho cùng sản phẩm, giảm tiền hàng đến 0đ. Mỗi mã dùng một lần trong thời hạn ghi trên mã."
+        description="Quản lý các mã giảm giá đã nhận. Bạn có thể lưu mã và cộng nhiều mã cho cùng sản phẩm, giảm tiền hàng đến 0đ. Mỗi mã dùng một lần trong thời hạn ghi trên mã."
         actions={
           <Button variant="outline" disabled={pending} onClick={reload}>
             <RefreshCwIcon className={pending ? "animate-spin" : ""} /> Tải lại
@@ -74,7 +74,7 @@ export function DiscountCodesPageClient({
       {codes.length === 0 ? (
         <EmptyState
           title="Bạn chưa có mã giảm giá"
-          description="Khi có quảng cáo nhận ưu đãi cho sản phẩm, bạn có thể nhận mã và lưu vào tài khoản để dùng ở lần mua tiếp theo."
+          description="Các mã giảm giá của bạn sẽ xuất hiện tại đây để lưu và dùng cho lần mua tiếp theo."
           action={
             <Button nativeButton={false} render={<Link href="/" />}>
               Khám phá sản phẩm

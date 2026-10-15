@@ -61,7 +61,7 @@ const wallet = await import(
     "@/api/discount-codes/queries": queriesUrl,
   })
 )
-const { state, ApiError } = await import(apiUrl)
+const { state } = await import(apiUrl)
 const {
   discountCodeUnitPrice,
   discountCodeCanBeSaved,
@@ -78,60 +78,10 @@ test.beforeEach(() => {
   state.revalidated.length = 0
 })
 
-test("verified ad completion returns the server-issued code and refreshes the wallet", async () => {
-  state.response = { message: "Đã nhận mã.", discount_code: reward }
-  const result = await actions.completeProductAdvertisementAction(
-    "SHOP-1",
-    "ao-thun",
-    "view-id"
-  )
-  assert.deepEqual(result.data, reward)
-  assert.equal(state.calls[0].method, "POST")
-  assert.ok(state.calls[0].path.endsWith("/advertisement/view-id/complete"))
-  assert.deepEqual(state.revalidated, ["/discount-codes"])
-})
-
-test("an unavailable automatic ad returns the server error without fabricating a session", async () => {
-  state.error = new ApiError(422, {
-    message: "Quảng cáo nhận thưởng hiện chưa khả dụng. Vui lòng thử lại sau.",
-  })
-  const result = await actions.startProductAdvertisementAction(
-    "SHOP-1",
-    "ao-thun"
-  )
-  assert.equal(result.success, false)
-  assert.equal(result.data, undefined)
-  assert.match(result.message, /chưa khả dụng/)
-  assert.equal(state.calls.length, 1)
-})
-
-test("automatic ad sessions use the system provider presentation without seller videos", async () => {
-  state.response = {
-    id: "verified-provider-session",
-    provider: "registered-provider",
-    ad_type: "rewarded_video",
-    presentation: { session_token: "public-launch-token" },
-  }
-  const result = await actions.startProductAdvertisementAction(
-    "SHOP-1",
-    "ao-thun"
-  )
-  assert.equal(result.success, true)
-  assert.deepEqual(result.data, state.response)
-  assert.equal(state.calls[0].body, undefined)
-})
-
-test("a rejected completion never returns or fabricates a coupon", async () => {
-  state.error = new ApiError(422, { message: "Chưa xem hết quảng cáo." })
-  const result = await actions.completeProductAdvertisementAction(
-    "SHOP-1",
-    "ao-thun",
-    "view-id"
-  )
-  assert.equal(result.success, false)
-  assert.equal(result.data, undefined)
-  assert.equal(result.message, "Chưa xem hết quảng cáo.")
-  assert.deepEqual(state.revalidated, [])
+test("retired advertisement actions cannot launch or complete reward requests", () => {
+  assert.equal(actions.startProductAdvertisementAction, undefined)
+  assert.equal(actions.completeProductAdvertisementAction, undefined)
+  assert.deepEqual(state.calls, [])
 })
 
 test("saving a code persists through the account API and wallet loading uses the product filter", async () => {
@@ -147,6 +97,8 @@ test("saving a code persists through the account API and wallet loading uses the
     reward,
   ])
   assert.deepEqual(state.calls[1].searchParams, { product_id: "product-id" })
+  assert.equal(state.calls[1].path, "/discount-codes")
+  assert.ok(state.calls.every((call) => !call.path.includes("advertisement")))
 })
 
 test("checkout passes the selected server code and idempotency key without client-controlled prices", async () => {
@@ -163,6 +115,7 @@ test("checkout passes the selected server code and idempotency key without clien
     quantity: 1,
     note: "",
     discount_code: reward.code,
+    advertisement_view_id: "obsolete-view-id",
     total: 1,
     discount_amount: 99999,
   }
@@ -177,6 +130,7 @@ test("checkout passes the selected server code and idempotency key without clien
   assert.equal(state.calls[0].body.discount_code, reward.code)
   assert.equal(state.calls[0].body.total, undefined)
   assert.equal(state.calls[0].body.discount_amount, undefined)
+  assert.equal("advertisement_view_id" in state.calls[0].body, false)
   assert.ok(state.revalidated.includes("/discount-codes"))
 })
 

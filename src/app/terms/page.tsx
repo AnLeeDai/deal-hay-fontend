@@ -32,12 +32,17 @@ export default function TermsPage() {
           khi đặt.
         </p>
         <p>
-          Mã giảm giá nhận được dành cho tài khoản nhận mã và sản phẩm được ghi
-          trên mã. Bạn có thể dùng ngay hoặc lưu trong mục Mã giảm giá để dùng
-          trước ngày hết hạn. Có thể cộng nhiều mã của cùng sản phẩm để giảm
-          tiền hàng đến 0đ. Mỗi mã chỉ áp dụng một lần cho một đơn hàng; mã chưa
-          cần dùng khi tiền hàng đã về 0đ được giữ lại. Thông tin mức giảm và
-          hạn dùng được hiển thị khi nhận mã.
+          Mã giảm giá đã có dành cho tài khoản nhận mã và sản phẩm được ghi trên
+          mã. Bạn có thể dùng mã trong mục Mã giảm giá trước ngày hết hạn. Có
+          thể cộng nhiều mã của cùng sản phẩm để giảm tiền hàng đến 0đ. Mỗi mã
+          chỉ áp dụng một lần cho một đơn hàng; mã chưa cần dùng khi tiền hàng
+          đã về 0đ được giữ lại. Mức giảm và hạn dùng được hiển thị trên mã.
+        </p>
+        <p>
+          Quảng cáo đối tác được hiển thị riêng với thông tin sản phẩm và nút
+          đặt hàng. Việc mở quảng cáo không cấp mã giảm giá hoặc thay đổi giá
+          đơn hàng. Nội dung trên trang quảng cáo bên thứ ba tuân theo điều
+          khoản của bên cung cấp trang đó.
         </p>
       </section>
       <section className="space-y-2">

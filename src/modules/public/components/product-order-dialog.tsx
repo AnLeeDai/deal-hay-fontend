@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm, useWatch } from "react-hook-form"
-import { MessageCircleIcon, PlayIcon, ShoppingBagIcon } from "lucide-react"
+import { MessageCircleIcon, ShoppingBagIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { AddressFields } from "@/components/address-fields"
@@ -29,10 +29,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ProductGallery } from "@/modules/public/components/product-gallery"
-import {
-  orderProductAction,
-  startProductAdvertisementAction,
-} from "@/modules/public/actions"
+import { orderProductAction } from "@/modules/public/actions"
 import {
   checkoutSchema,
   type CheckoutValues,
@@ -83,7 +80,6 @@ export function ProductOrderDialog({
   const [codesError, setCodesError] = useState<string | null>(null)
   const [codesPending, startCodesTransition] = useTransition()
   const [reloadCodes, setReloadCodes] = useState(0)
-  const [adMessage, setAdMessage] = useState<string | null>(null)
   const [idempotencyKey, setIdempotencyKey] = useState(() =>
     crypto.randomUUID()
   )
@@ -137,19 +133,6 @@ export function ProductOrderDialog({
       active = false
     }
   }, [open, product.id, reloadCodes])
-
-  const viewAdvertisement = () =>
-    startTransition(async () => {
-      const state = await startProductAdvertisementAction(
-        shop.code,
-        product.slug
-      )
-      const message = state.success
-        ? "Quảng cáo nhận ưu đãi đang tạm thời chưa sẵn sàng. Vui lòng thử lại sau."
-        : state.message
-      setAdMessage(message)
-      toast.error(message)
-    })
 
   const submit = form.handleSubmit((values) =>
     startTransition(async () => {
@@ -245,8 +228,8 @@ export function ProductOrderDialog({
               {formatCurrency(regularPrice)}
             </p>
             <p className="text-sm text-muted-foreground">
-              Tích lũy mã từ nhiều lượt xem quảng cáo để giảm tiền hàng, tối đa
-              toàn bộ giá trị sản phẩm.
+              Bạn có thể áp dụng các mã đã lưu của sản phẩm ở bước xác nhận đơn
+              hàng.
             </p>
             <div className="space-y-3">
               <Button
@@ -267,29 +250,6 @@ export function ProductOrderDialog({
               >
                 <ShoppingBagIcon /> Đặt ngay · {formatCurrency(regularPrice)}
               </Button>
-              <div className="space-y-2">
-                <p className="text-sm font-medium">
-                  Xem quảng cáo để nhận mã giảm giá
-                </p>
-                <Button
-                  className="w-full"
-                  variant="secondary"
-                  disabled={pending || stock < 1}
-                  onClick={viewAdvertisement}
-                >
-                  <PlayIcon /> Xem quảng cáo
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Quảng cáo do hệ thống tự động cung cấp. Mã được cấp sau khi
-                  lượt xem được xác nhận; có thể lưu và cộng dồn để mua với giá
-                  0đ.
-                </p>
-                {adMessage ? (
-                  <p className="text-sm text-muted-foreground" role="status">
-                    {adMessage}
-                  </p>
-                ) : null}
-              </div>
               <Button
                 className="w-full"
                 variant="outline"
