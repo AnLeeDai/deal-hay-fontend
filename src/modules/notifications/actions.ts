@@ -9,7 +9,10 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/api/notifications/mutations"
+import { getNotifications } from "@/api/notifications/queries"
+import type { PaginatedResponse } from "@/types/common"
 import type { ActionState } from "@/types/forms"
+import type { AppNotification } from "@/types/notification"
 import {
   notificationAppealSchema,
   type NotificationAppealValues,
@@ -17,14 +20,25 @@ import {
 
 export async function markAllNotificationsReadAction(): Promise<void> {
   await markAllNotificationsRead()
-  revalidatePath("/", "layout")
 }
 
 export async function markNotificationReadAction(
   notificationId: string
 ): Promise<void> {
   await markNotificationRead(notificationId)
-  revalidatePath("/", "layout")
+}
+
+export async function synchronizeNotificationsAction(
+  page: number
+): Promise<PaginatedResponse<AppNotification> | null> {
+  try {
+    const response = await getNotifications(
+      String(Math.max(1, Math.trunc(page)))
+    )
+    return response.notification_page
+  } catch {
+    return null
+  }
 }
 
 export async function notificationAppealAction(

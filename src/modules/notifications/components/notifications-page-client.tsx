@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   BellIcon,
@@ -16,6 +16,7 @@ import { FormSubmitButton } from "@/components/form-submit-button"
 import { DataPagination } from "@/components/layout/data-pagination"
 import { EmptyState } from "@/components/layout/empty-state"
 import { PageHeader } from "@/components/layout/page-header"
+import { useRealtime } from "@/components/realtime-provider"
 import {
   Accordion,
   AccordionContent,
@@ -42,6 +43,7 @@ import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
   notificationAppealAction,
+  synchronizeNotificationsAction,
 } from "@/modules/notifications/actions"
 import {
   notificationAppealSchema,
@@ -111,10 +113,117 @@ function NotificationAppealForm({
 
 export function NotificationsPageClient({
   page,
+  currentUserId,
 }: {
   page: PaginatedResponse<AppNotification>
+  currentUserId?: string
 }) {
   const [isPending, startTransition] = useTransition()
+  const [notificationPage, setNotificationPage] = useState(page)
+  const [newNotificationCount, setNewNotificationCount] = useState(0)
+  const notificationRevision = useRef(0)
+  const knownNotificationIds = useRef(new Set(page.data.map(({ id }) => id)))
+  const { echo, synchronizeUnreadCounts } = useRealtime()
+  const currentPage = page.current_page ?? 1
+  const pageSize =
+    "per_page" in page && typeof page.per_page === "number" && page.per_page > 0
+      ? page.per_page
+      : 20
+
+  useEffect(() => {
+    if (!echo || !currentUserId) return
+
+    let disposed = false
+    let synchronizing = false
+    let synchronizationRequested = false
+    const channel = echo.private(`user-notifications.${currentUserId}`)
+
+    const synchronize = async () => {
+      synchronizationRequested = true
+      if (synchronizing) return
+      synchronizing = true
+
+      try {
+        while (synchronizationRequested && !disposed) {
+          synchronizationRequested = false
+          const revision = notificationRevision.current
+          const updatedPage = await synchronizeNotificationsAction(currentPage)
+          if (disposed) return
+          if (revision !== notificationRevision.current) {
+            synchronizationRequested = true
+            continue
+          }
+          if (updatedPage) {
+            updatedPage.data.forEach(({ id }) =>
+              knownNotificationIds.current.add(id)
+            )
+            setNotificationPage(updatedPage)
+          }
+        }
+      } catch {
+        // Preserve the displayed notifications if reconnect synchronization fails.
+      } finally {
+        synchronizing = false
+      }
+    }
+
+    const onSubscribed = () => void synchronize()
+    const onNotification = (payload: unknown) => {
+      if (
+        disposed ||
+        !payload ||
+        typeof payload !== "object" ||
+        !("id" in payload) ||
+        typeof payload.id !== "string" ||
+        !("title" in payload) ||
+        typeof payload.title !== "string" ||
+        !("body" in payload) ||
+        typeof payload.body !== "string"
+      ) {
+        return
+      }
+
+      const notification = payload as AppNotification
+      const isNew = !knownNotificationIds.current.has(notification.id)
+      knownNotificationIds.current.add(notification.id)
+      notificationRevision.current += 1
+      setNotificationPage((previous) => {
+        const data = previous.data.map((existing) =>
+          existing.id === notification.id
+            ? {
+                ...existing,
+                ...notification,
+                read_at: existing.read_at ?? notification.read_at,
+              }
+            : existing
+        )
+        const total = previous.total + (isNew ? 1 : 0)
+
+        return {
+          ...previous,
+          data:
+            currentPage === 1 && isNew
+              ? [notification, ...data].slice(0, pageSize)
+              : data,
+          total,
+          last_page: Math.max(1, Math.ceil(total / pageSize)),
+        }
+      })
+      if (isNew && currentPage > 1) {
+        setNewNotificationCount((previous) => previous + 1)
+      }
+    }
+
+    channel.listen(".notification.created", onNotification)
+    channel.listen(".pusher:subscription_succeeded", onSubscribed)
+    if (channel.subscription.subscribed) void synchronize()
+
+    return () => {
+      disposed = true
+      channel.stopListening(".notification.created", onNotification)
+      channel.stopListening(".pusher:subscription_succeeded", onSubscribed)
+    }
+  }, [currentPage, currentUserId, echo, pageSize])
 
   return (
     <div className="space-y-8">
@@ -126,6 +235,16 @@ export function NotificationsPageClient({
               startTransition(async () => {
                 try {
                   await markAllNotificationsReadAction()
+                  notificationRevision.current += 1
+                  const readAt = new Date().toISOString()
+                  setNotificationPage((previous) => ({
+                    ...previous,
+                    data: previous.data.map((notification) => ({
+                      ...notification,
+                      read_at: notification.read_at ?? readAt,
+                    })),
+                  }))
+                  void synchronizeUnreadCounts()
                   toast.success("Đã đánh dấu tất cả thông báo là đã đọc.")
                 } catch {
                   toast.error("Không thể cập nhật thông báo.")
@@ -140,8 +259,24 @@ export function NotificationsPageClient({
         description="Xem trạng thái thông báo, đánh dấu đã đọc hoặc gửi ticket khiếu nại nếu cần."
         title="Trung tâm thông báo"
       />
+      {newNotificationCount > 0 ? (
+        <div
+          className="flex items-center justify-between gap-4 rounded-lg border border-primary/30 bg-primary/5 p-4"
+          role="status"
+        >
+          <p className="text-sm">Có {newNotificationCount} thông báo mới.</p>
+          <Button
+            nativeButton={false}
+            render={<Link href="/notifications" />}
+            size="sm"
+            variant="outline"
+          >
+            Xem mới nhất
+          </Button>
+        </div>
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
-        {page.data.map((notification) => (
+        {notificationPage.data.map((notification) => (
           <Card
             key={notification.id}
             className={!notification.read_at ? "ring-primary/30" : undefined}
@@ -187,6 +322,17 @@ export function NotificationsPageClient({
                       startTransition(async () => {
                         try {
                           await markNotificationReadAction(notification.id)
+                          notificationRevision.current += 1
+                          const readAt = new Date().toISOString()
+                          setNotificationPage((previous) => ({
+                            ...previous,
+                            data: previous.data.map((existing) =>
+                              existing.id === notification.id
+                                ? { ...existing, read_at: readAt }
+                                : existing
+                            ),
+                          }))
+                          void synchronizeUnreadCounts()
                           toast.success("Đã đánh dấu thông báo là đã đọc.")
                         } catch {
                           toast.error("Không thể cập nhật thông báo.")
@@ -214,7 +360,7 @@ export function NotificationsPageClient({
             </CardContent>
           </Card>
         ))}
-        {page.data.length === 0 ? (
+        {notificationPage.data.length === 0 ? (
           <EmptyState
             title="Bạn chưa có thông báo"
             description="Cập nhật về tài khoản, cửa hàng và hoạt động mua sắm sẽ xuất hiện tại đây."
@@ -222,8 +368,8 @@ export function NotificationsPageClient({
         ) : null}
       </div>
       <DataPagination
-        currentPage={page.current_page}
-        lastPage={page.last_page}
+        currentPage={notificationPage.current_page}
+        lastPage={notificationPage.last_page}
       />
     </div>
   )

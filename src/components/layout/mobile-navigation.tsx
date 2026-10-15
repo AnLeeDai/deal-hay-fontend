@@ -14,6 +14,7 @@ import {
 
 import { SignOutButton } from "@/components/layout/sign-out-button"
 import { UnreadCountBadge } from "@/components/layout/unread-count-badge"
+import { useRealtime } from "@/components/realtime-provider"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -25,7 +26,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { UserAvatar } from "@/components/user-avatar"
-import type { UnreadCounts, User } from "@/types/auth"
+import type { User } from "@/types/auth"
 
 const publicItems = [
   { href: "/", label: "Khám phá sản phẩm", icon: HouseIcon },
@@ -44,13 +45,8 @@ const publicItems = [
   { href: "/profile", label: "Hồ sơ cá nhân", icon: UserRoundIcon },
 ] as const
 
-export function MobileNavigation({
-  unreadCounts,
-  user,
-}: {
-  unreadCounts: UnreadCounts
-  user: User | null
-}) {
+export function MobileNavigation({ user }: { user: User | null }) {
+  const { unreadCounts } = useRealtime()
   return (
     <Sheet>
       <SheetTrigger

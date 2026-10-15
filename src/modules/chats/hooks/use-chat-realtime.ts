@@ -1,15 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import type Echo from "laravel-echo"
-import type { ConnectionStatus } from "laravel-echo"
+import { useEffect, useRef } from "react"
 
-import type { ChatMessagesReadEvent, RealtimeConfig } from "@/api/chats/types"
+import type { ChatMessagesReadEvent } from "@/api/chats/types"
+import { useRealtime } from "@/components/realtime-provider"
 import type { ChatMessage } from "@/types/chat"
 
-type ReverbEcho = Echo<"reverb">
 type PresenceMember = { id: string; name: string }
-
 type ChatRealtimeCallbacks = {
   onMessage: (message: ChatMessage) => void
   onMessagesRead: (event: ChatMessagesReadEvent) => void
@@ -18,7 +15,6 @@ type ChatRealtimeCallbacks = {
 }
 
 export function useChatRealtime({
-  config,
   currentUserId,
   selectedConversationId,
   counterpartId,
@@ -27,21 +23,18 @@ export function useChatRealtime({
   onPresenceChange,
   onReconnect,
 }: {
-  config: RealtimeConfig
   currentUserId: string
   selectedConversationId?: string
   counterpartId?: string
 } & ChatRealtimeCallbacks) {
-  const [echo, setEcho] = useState<ReverbEcho | null>(null)
-  const [socketId, setSocketId] = useState<string>()
-  const [status, setStatus] = useState<ConnectionStatus>("connecting")
-  const callbacks = useRef<ChatRealtimeCallbacks>({
+  const { echo, socketId, status, subscriptionVersion, reconnect } =
+    useRealtime()
+  const callbacks = useRef({
     onMessage,
     onMessagesRead,
     onPresenceChange,
     onReconnect,
   })
-  const hasConnected = useRef(false)
 
   useEffect(() => {
     callbacks.current = {
@@ -53,83 +46,32 @@ export function useChatRealtime({
   }, [onMessage, onMessagesRead, onPresenceChange, onReconnect])
 
   useEffect(() => {
-    let disposed = false
-    let instance: ReverbEcho | undefined
-    let unsubscribeConnection: (() => void) | undefined
-    let previousConnectionStatus: ConnectionStatus | undefined
+    if (!echo) return
 
-    void Promise.all([import("laravel-echo"), import("pusher-js")])
-      .then(([{ default: EchoClient }, { default: Pusher }]) => {
-        if (disposed) return
-
-        instance = new EchoClient<"reverb">({
-          broadcaster: "reverb",
-          key: config.key,
-          wsHost: config.host,
-          wsPort: config.port,
-          wssPort: config.port,
-          forceTLS: config.scheme === "https",
-          enabledTransports: ["ws", "wss"],
-          authEndpoint: "/api/broadcasting/auth",
-          auth: { headers: { Accept: "application/json" } },
-          Pusher,
-          withoutInterceptors: true,
-        })
-
-        setEcho(instance)
-        instance
-          .private(`user-chat.${currentUserId}`)
-          .listen(".message.sent", (payload: unknown) => {
-            if (
-              payload &&
-              typeof payload === "object" &&
-              "id" in payload &&
-              "conversation_id" in payload
-            ) {
-              callbacks.current.onMessage(payload as ChatMessage)
-            }
-          })
-          .error(() => setStatus("failed"))
-
-        const synchronizeConnection = (nextStatus: ConnectionStatus) => {
-          if (disposed) return
-
-          const previousStatus = previousConnectionStatus
-          previousConnectionStatus = nextStatus
-          setStatus(nextStatus)
-          setSocketId(
-            nextStatus === "connected" ? instance?.socketId() : undefined
-          )
-
-          if (nextStatus !== "connected") {
-            if (previousStatus === "connected") {
-              callbacks.current.onPresenceChange(false)
-            }
-            return
-          }
-          if (previousStatus === "connected") return
-          if (hasConnected.current) callbacks.current.onReconnect()
-          hasConnected.current = true
-        }
-
-        unsubscribeConnection = instance.connector.onConnectionChange(
-          synchronizeConnection
-        )
-        synchronizeConnection(instance.connectionStatus())
-      })
-      .catch(() => {
-        if (!disposed) setStatus("failed")
-      })
+    const channel = echo.private(`user-chat.${currentUserId}`)
+    const messageListener = (payload: ChatMessage) => {
+      if (payload?.id && payload.conversation_id && payload.sender?.id) {
+        callbacks.current.onMessage(payload)
+      }
+    }
+    const readListener = (payload: ChatMessagesReadEvent) => {
+      if (payload?.conversation_id && Array.isArray(payload.message_ids)) {
+        callbacks.current.onMessagesRead(payload)
+      }
+    }
+    channel
+      .listen(".message.sent", messageListener)
+      .listen(".messages.read", readListener)
 
     return () => {
-      disposed = true
-      unsubscribeConnection?.()
-      instance?.disconnect()
-      hasConnected.current = false
-      setEcho(null)
-      setSocketId(undefined)
+      channel.stopListening(".message.sent", messageListener)
+      channel.stopListening(".messages.read", readListener)
     }
-  }, [config.host, config.key, config.port, config.scheme, currentUserId])
+  }, [currentUserId, echo])
+
+  useEffect(() => {
+    if (subscriptionVersion > 0) callbacks.current.onReconnect()
+  }, [subscriptionVersion])
 
   useEffect(() => {
     if (!echo || !selectedConversationId || !counterpartId) return
@@ -139,36 +81,28 @@ export function useChatRealtime({
       callbacks.current.onPresenceChange(onlineMemberIds.has(counterpartId))
 
     echo
-      .private(`chat.${selectedConversationId}`)
-      .listen(".messages.read", (payload: unknown) => {
-        if (payload && typeof payload === "object") {
-          callbacks.current.onMessagesRead(payload as ChatMessagesReadEvent)
-        }
-      })
-      .error(() => setStatus("failed"))
-
-    echo
       .join(`chat-presence.${selectedConversationId}`)
       .here((members: PresenceMember[]) => {
         onlineMemberIds.clear()
-        members.forEach((member) => onlineMemberIds.add(String(member.id)))
+        members.forEach(({ id }) => onlineMemberIds.add(String(id)))
         updatePresence()
       })
-      .joining((member: PresenceMember) => {
-        onlineMemberIds.add(String(member.id))
+      .joining(({ id }: PresenceMember) => {
+        onlineMemberIds.add(String(id))
         updatePresence()
       })
-      .leaving((member: PresenceMember) => {
-        onlineMemberIds.delete(String(member.id))
+      .leaving(({ id }: PresenceMember) => {
+        onlineMemberIds.delete(String(id))
         updatePresence()
       })
-      .error(() => setStatus("failed"))
+      .error(() => callbacks.current.onPresenceChange(false))
 
-    return () => {
-      echo.leave(`chat.${selectedConversationId}`)
-      echo.leave(`chat-presence.${selectedConversationId}`)
-    }
+    return () => echo.leave(`chat-presence.${selectedConversationId}`)
   }, [counterpartId, echo, selectedConversationId])
 
-  return { socketId, status }
+  useEffect(() => {
+    if (status !== "connected") callbacks.current.onPresenceChange(false)
+  }, [status])
+
+  return { socketId, status, reconnect }
 }

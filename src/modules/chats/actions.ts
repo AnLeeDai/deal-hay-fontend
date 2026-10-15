@@ -1,15 +1,15 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
-
 import { ApiError } from "@/api/client"
+import { getCurrentSession } from "@/api/auth/queries"
 import {
   markConversationRead,
   recordPresenceHeartbeat,
   sendChatMessage,
 } from "@/api/chats/mutations"
-import { getChatHistory } from "@/api/chats/queries"
-import type { ChatHistoryResponse } from "@/api/chats/types"
+import { getChatHistory, getChats } from "@/api/chats/queries"
+import type { ChatHistoryResponse, ChatsResponse } from "@/api/chats/types"
+import type { UnreadCounts } from "@/types/auth"
 import type { ActionState } from "@/types/forms"
 import { sendMessageSchema } from "@/modules/chats/schemas/chats"
 import type { ChatMessage } from "@/types/chat"
@@ -17,6 +17,45 @@ import type { ChatMessage } from "@/types/chat"
 export type SendMessageActionState = ActionState & { data?: ChatMessage }
 export type ChatHistoryActionState = ActionState & {
   data?: ChatHistoryResponse
+}
+
+export async function refreshUnreadCountsAction(): Promise<UnreadCounts | null> {
+  try {
+    const session = await getCurrentSession()
+    return session.user ? session.unreadCounts : null
+  } catch {
+    return null
+  }
+}
+
+export async function synchronizeChatsAction(
+  conversationSlug?: string
+): Promise<ChatsResponse | null> {
+  try {
+    const [data, history] = await Promise.all([
+      getChats(),
+      conversationSlug ? getChatHistory(conversationSlug, undefined, 50) : null,
+    ])
+    const conversation = data.conversations.find(
+      ({ slug }) => slug === conversationSlug
+    )
+    return {
+      conversations: data.conversations,
+      selectedConversation:
+        conversation && history
+          ? {
+              ...conversation,
+              messages: history.messages,
+              messages_pagination: {
+                has_more: history.has_more,
+                next_cursor: history.next_cursor,
+              },
+            }
+          : null,
+    }
+  } catch {
+    return null
+  }
 }
 
 function validSocketId(
@@ -33,7 +72,6 @@ export async function markConversationReadAction(
 ): Promise<ActionState> {
   try {
     await markConversationRead(conversationSlug, validSocketId(socketId))
-    revalidatePath("/", "layout")
     return { success: true, message: "Đã cập nhật trạng thái đã đọc." }
   } catch (error) {
     return {
@@ -83,7 +121,6 @@ export async function sendMessageAction(
       String(payload.get("client_message_id")),
       validSocketId(formData.get("socket_id"))
     )
-    revalidatePath(`/chats/${conversationSlug}`)
     return { success: true, message: "Đã gửi tin nhắn.", data: message }
   } catch (error) {
     if (error instanceof ApiError) {

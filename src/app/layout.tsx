@@ -4,6 +4,7 @@ import { Geist_Mono, Inter } from "next/font/google"
 import "@/app/globals.css"
 import { SiteFooter } from "@/components/layout/site-footer"
 import { SiteHeader } from "@/components/layout/site-header"
+import { RealtimeRoot } from "@/components/realtime-root"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -36,14 +37,16 @@ export default function RootLayout({
       <body className="min-h-svh bg-background text-foreground">
         <ThemeProvider>
           <TooltipProvider>
-            <div className="flex min-h-svh flex-col">
-              <SiteHeader />
-              <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
-                {children}
-              </main>
-              <SiteFooter />
-            </div>
-            <Toaster position="top-right" richColors />
+            <RealtimeRoot>
+              <div className="flex min-h-svh flex-col">
+                <SiteHeader />
+                <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+                  {children}
+                </main>
+                <SiteFooter />
+              </div>
+              <Toaster position="top-right" richColors />
+            </RealtimeRoot>
           </TooltipProvider>
         </ThemeProvider>
       </body>

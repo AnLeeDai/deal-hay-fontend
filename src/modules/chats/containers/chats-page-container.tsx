@@ -1,4 +1,4 @@
-import { getChats, getRealtimeConfig } from "@/api/chats/queries"
+import { getChats } from "@/api/chats/queries"
 import { ChatsPageClient } from "@/modules/chats/components/chats-page-client"
 
 export async function ChatsPageContainer({
@@ -8,22 +8,13 @@ export async function ChatsPageContainer({
   conversationSlug?: string
   currentUserId: string
 }) {
-  const [data, realtimeConfig] = await Promise.all([
-    getChats(conversationSlug, 50),
-    getRealtimeConfig(),
-  ])
-  const renderKey = [
-    data.selectedConversation?.id ?? "list",
-    data.selectedConversation?.messages.at(-1)?.id ?? "empty",
-    data.conversations.at(0)?.updated_at ?? "none",
-  ].join(":")
+  const data = await getChats(conversationSlug, 50)
 
   return (
     <ChatsPageClient
-      key={renderKey}
+      key={data.selectedConversation?.id ?? "list"}
       conversations={data.conversations}
       currentUserId={currentUserId}
-      realtimeConfig={realtimeConfig}
       selectedConversation={data.selectedConversation}
     />
   )

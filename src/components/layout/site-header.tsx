@@ -12,7 +12,7 @@ import { getCurrentSession } from "@/api/auth/queries"
 import { MobileNavigation } from "@/components/layout/mobile-navigation"
 import { SignOutButton } from "@/components/layout/sign-out-button"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
-import { UnreadCountBadge } from "@/components/layout/unread-count-badge"
+import { UnreadNavigationLink } from "@/components/layout/unread-count-badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { UserAvatar } from "@/components/user-avatar"
@@ -28,7 +28,7 @@ const navigation = [
 ] as const
 
 export async function SiteHeader() {
-  const { unreadCounts, user } = await getCurrentSession()
+  const { user } = await getCurrentSession()
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
@@ -69,24 +69,14 @@ export async function SiteHeader() {
           className="hidden items-center gap-1 lg:flex"
           aria-label="Điều hướng chính"
         >
-          {navigation.map((item) => {
-            const count = "unreadKey" in item ? unreadCounts[item.unreadKey] : 0
-
-            return (
-              <Button
-                key={item.href}
-                aria-label={
-                  count > 0 ? `${item.label}, ${count} chưa đọc` : item.label
-                }
-                nativeButton={false}
-                render={<Link href={item.href} />}
-                variant="ghost"
-              >
-                {item.label}
-                <UnreadCountBadge count={count} />
-              </Button>
-            )
-          })}
+          {navigation.map((item) => (
+            <UnreadNavigationLink
+              key={item.href}
+              href={item.href}
+              kind={"unreadKey" in item ? item.unreadKey : undefined}
+              label={item.label}
+            />
+          ))}
           {user?.role === "shop_owner" ? (
             <Button
               nativeButton={false}
@@ -144,44 +134,28 @@ export async function SiteHeader() {
         </div>
 
         <div className="ml-auto flex items-center gap-1 lg:hidden">
-          <Button
-            aria-label={
-              unreadCounts.messages > 0
-                ? `Mở tin nhắn, ${unreadCounts.messages} chưa đọc`
-                : "Mở tin nhắn"
-            }
+          <UnreadNavigationLink
+            badgeClassName="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px]"
             className="relative"
-            nativeButton={false}
-            render={<Link href="/chats" />}
+            href="/chats"
+            kind="messages"
+            label="Mở tin nhắn"
             size="icon"
-            variant="ghost"
           >
             <MessageCircleIcon />
-            <UnreadCountBadge
-              className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px]"
-              count={unreadCounts.messages}
-            />
-          </Button>
-          <Button
-            aria-label={
-              unreadCounts.notifications > 0
-                ? `Mở thông báo, ${unreadCounts.notifications} chưa đọc`
-                : "Mở thông báo"
-            }
+          </UnreadNavigationLink>
+          <UnreadNavigationLink
+            badgeClassName="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px]"
             className="relative"
-            nativeButton={false}
-            render={<Link href="/notifications" />}
+            href="/notifications"
+            kind="notifications"
+            label="Mở thông báo"
             size="icon"
-            variant="ghost"
           >
             <BellIcon />
-            <UnreadCountBadge
-              className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px]"
-              count={unreadCounts.notifications}
-            />
-          </Button>
+          </UnreadNavigationLink>
           <ThemeToggle />
-          <MobileNavigation unreadCounts={unreadCounts} user={user} />
+          <MobileNavigation user={user} />
         </div>
       </div>
     </header>
