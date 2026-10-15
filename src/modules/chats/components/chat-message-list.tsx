@@ -1,13 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useRef, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import {
   CheckCheckIcon,
   CheckIcon,
   FileIcon,
   LoaderCircleIcon,
   PaperclipIcon,
+  ReplyIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -34,6 +35,7 @@ import { UserAvatar } from "@/components/user-avatar"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { loadChatHistoryAction } from "@/modules/chats/actions"
 import { ChatImageAttachment } from "@/modules/chats/components/chat-image-attachment"
+import { ChatReplyPreview } from "@/modules/chats/components/chat-reply-preview"
 import type { ChatHistoryResponse } from "@/api/chats/types"
 import type { ChatMessage } from "@/types/chat"
 
@@ -43,17 +45,54 @@ export function ChatMessageList({
   messages,
   pagination,
   onOlderMessages,
+  onReply,
 }: {
   conversationSlug: string
   currentUserId: string
   messages: ChatMessage[]
   pagination: { has_more: boolean; next_cursor: string | null }
   onOlderMessages: (history: ChatHistoryResponse) => void
+  onReply: (message: ChatMessage) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const [isLoadingOlder, startLoadingOlder] = useTransition()
+  const [highlightedMessageId, setHighlightedMessageId] = useState<
+    string | null
+  >(null)
+  const messageElements = useRef(new Map<string, HTMLDivElement>())
+  const highlightTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastMessageId = messages.at(-1)?.id
+
+  useEffect(
+    () => () => {
+      if (highlightTimeout.current) clearTimeout(highlightTimeout.current)
+    },
+    []
+  )
+
+  const jumpToMessage = (id: string) => {
+    const element = messageElements.current.get(id)
+    if (!element) {
+      toast.info(
+        "Tin nhắn gốc nằm trong lịch sử cũ. Bấm ‘Xem tin nhắn cũ hơn’ để tìm."
+      )
+      return
+    }
+
+    element.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+      block: "center",
+    })
+    element.focus({ preventScroll: true })
+    setHighlightedMessageId(id)
+    if (highlightTimeout.current) clearTimeout(highlightTimeout.current)
+    highlightTimeout.current = setTimeout(() => {
+      setHighlightedMessageId(null)
+    }, 2000)
+  }
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -124,10 +163,22 @@ export function ChatMessageList({
 
           {messages.map((message) => {
             const fromCurrentUser = message.sender.id === currentUserId
+            const replyTo = message.reply_to
             return (
               <Message
                 key={message.id}
+                ref={(element) => {
+                  if (element) messageElements.current.set(message.id, element)
+                  else messageElements.current.delete(message.id)
+                }}
                 align={fromCurrentUser ? "end" : "start"}
+                className={
+                  highlightedMessageId === message.id
+                    ? "rounded-xl bg-primary/10 ring-2 ring-primary/30"
+                    : undefined
+                }
+                data-message-id={message.id}
+                tabIndex={-1}
               >
                 <MessageAvatar>
                   <UserAvatar
@@ -137,6 +188,13 @@ export function ChatMessageList({
                   />
                 </MessageAvatar>
                 <MessageContent>
+                  {replyTo ? (
+                    <ChatReplyPreview
+                      className={fromCurrentUser ? "self-end" : ""}
+                      reply={replyTo}
+                      onJump={() => jumpToMessage(replyTo.id)}
+                    />
+                  ) : null}
                   {message.product ? (
                     <Item
                       className="max-w-sm bg-card"
@@ -210,6 +268,17 @@ export function ChatMessageList({
                   ) : null}
 
                   <MessageFooter>
+                    <Button
+                      aria-label={`Trả lời tin nhắn của ${message.sender.name}`}
+                      className="mr-2 text-muted-foreground"
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onReply(message)}
+                    >
+                      <ReplyIcon />
+                      Trả lời
+                    </Button>
                     {formatDate(message.created_at)}
                     {fromCurrentUser ? (
                       message.read_at ? (

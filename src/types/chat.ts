@@ -20,6 +20,18 @@ export type ChatAttachment = {
   type: "image" | "video" | "file"
 }
 
+export type ChatReply = {
+  id: string
+  body: string
+  sender: {
+    id: string
+    name: string
+    avatar_url: string | null
+  }
+  attachment: Pick<ChatAttachment, "type" | "name"> | null
+  product: { name: string } | null
+}
+
 export type ChatMessage = {
   id: string
   conversation_id: string
@@ -27,6 +39,7 @@ export type ChatMessage = {
   read_at: string | null
   attachment: ChatAttachment | null
   product: ProductReference | null
+  reply_to?: ChatReply | null
   sender: {
     id: string
     name: string

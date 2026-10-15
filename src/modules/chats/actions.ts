@@ -90,6 +90,7 @@ export async function sendMessageAction(
 ): Promise<SendMessageActionState> {
   const parsed = sendMessageSchema.safeParse({
     body: formData.get("body") ?? "",
+    reply_to_id: formData.get("reply_to_id") || undefined,
     attachment:
       formData.get("attachment") instanceof File &&
       (formData.get("attachment") as File).size > 0
@@ -112,6 +113,9 @@ export async function sendMessageAction(
   }
   if (parsed.data.attachment instanceof File) {
     payload.set("attachment", parsed.data.attachment)
+  }
+  if (parsed.data.reply_to_id) {
+    payload.set("reply_to_id", parsed.data.reply_to_id)
   }
 
   try {

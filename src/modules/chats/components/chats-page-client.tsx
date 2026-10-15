@@ -41,6 +41,7 @@ import {
 } from "@/modules/chats/lib/chat-state"
 import type {
   ChatMessage,
+  ChatReply,
   ConversationSummary,
   SelectedConversation,
 } from "@/types/chat"
@@ -99,6 +100,10 @@ export function ChatsPageClient({
   const activeConversation = state.selectedConversation
   const [readPending, startReadTransition] = useTransition()
   const [synchronizationFailed, setSynchronizationFailed] = useState(false)
+  const [replyDraft, setReplyDraft] = useState<{
+    conversationId: string
+    reply: ChatReply
+  } | null>(null)
   const { synchronizeUnreadCounts, heartbeatIntervalSeconds } = useRealtime()
   const socketIdRef = useRef<string | undefined>(undefined)
   const mounted = useRef(true)
@@ -107,6 +112,10 @@ export function ChatsPageClient({
   const conversationRevisions = useRef(new Map<string, number>())
   const conversationId = activeConversation?.id
   const conversationSlug = activeConversation?.slug
+  const replyTo =
+    replyDraft && replyDraft.conversationId === conversationId
+      ? replyDraft.reply
+      : null
   const markAsReadRef = useRef<() => void>(() => {})
 
   useEffect(() => {
@@ -274,15 +283,43 @@ export function ChatsPageClient({
   }, [socketId])
 
   const handleSent = useCallback(
-    (message: ChatMessage) => {
+    (message: ChatMessage, submittedReplyId?: string | null) => {
       const revisions = conversationRevisions.current
       revisions.set(
         message.conversation_id,
         (revisions.get(message.conversation_id) ?? 0) + 1
       )
       setState((current) => receiveChatMessage(current, message, currentUserId))
+      setReplyDraft((current) =>
+        current?.conversationId === message.conversation_id &&
+        current.reply.id === submittedReplyId
+          ? null
+          : current
+      )
     },
     [currentUserId]
+  )
+
+  const handleReply = useCallback(
+    (message: ChatMessage) => {
+      if (message.conversation_id !== conversationId) return
+      setReplyDraft({
+        conversationId: message.conversation_id,
+        reply: {
+          id: message.id,
+          body: message.body,
+          sender: message.sender,
+          attachment: message.attachment
+            ? {
+                type: message.attachment.type,
+                name: message.attachment.name,
+              }
+            : null,
+          product: message.product ? { name: message.product.name } : null,
+        },
+      })
+    },
+    [conversationId]
   )
 
   const handleOlderMessages = useCallback((history: ChatHistoryResponse) => {
@@ -438,15 +475,20 @@ export function ChatsPageClient({
                   </div>
 
                   <ChatMessageList
+                    key={`messages-${activeConversation.id}`}
                     conversationSlug={activeConversation.slug}
                     currentUserId={currentUserId}
                     messages={activeConversation.messages}
                     pagination={activeConversation.messages_pagination}
                     onOlderMessages={handleOlderMessages}
+                    onReply={handleReply}
                   />
                   <ChatComposer
+                    key={activeConversation.id}
                     conversationSlug={activeConversation.slug}
+                    replyTo={replyTo}
                     socketId={socketId}
+                    onCancelReply={() => setReplyDraft(null)}
                     onSent={handleSent}
                   />
                 </>

@@ -10,6 +10,10 @@ const optionalBodySchema = z.union([
 export const sendMessageSchema = z
   .object({
     body: optionalBodySchema,
+    reply_to_id: z
+      .string()
+      .uuid("Tin nhắn được trả lời không hợp lệ.")
+      .optional(),
     attachment: chatAttachmentFileSchema(
       "Tệp đính kèm không hợp lệ."
     ).optional(),

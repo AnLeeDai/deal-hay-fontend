@@ -145,6 +145,72 @@ test("a text message without an attachment still sends", async () => {
   assert.equal(sentMessages.length, 1)
   assert.equal(sentMessages[0][1].get("body"), "Xin chào")
   assert.equal(sentMessages[0][1].has("attachment"), false)
+  assert.equal(sentMessages[0][1].has("reply_to_id"), false)
+})
+
+test("system Unicode emoji can be sent without other text or an attachment", async () => {
+  const emoji = "👋🏽 👨‍👩‍👧‍👦 🇻🇳 ✨"
+
+  const state = await sendMessageAction("test-conversation", compose(emoji))
+
+  assert.equal(state.success, true)
+  assert.equal(sentMessages[0][1].get("body"), emoji)
+})
+
+test("a text reply forwards only the original message identifier with its content", async () => {
+  const replyId = "c7e3a481-a449-4e10-b4dd-9109d2205599"
+  const formData = compose("Dạ được 👍")
+  formData.set("reply_to_id", replyId)
+  formData.set("reply_to", JSON.stringify({ body: "Untrusted quoted content" }))
+
+  const state = await sendMessageAction("test-conversation", formData)
+
+  assert.equal(state.success, true)
+  assert.equal(sentMessages[0][1].get("reply_to_id"), replyId)
+  assert.equal(sentMessages[0][1].get("body"), "Dạ được 👍")
+  assert.equal(sentMessages[0][1].has("reply_to"), false)
+})
+
+test("an image-only reply keeps its original target and attachment", async () => {
+  const replyId = "c7e3a481-a449-4e10-b4dd-9109d2205599"
+  const attachment = image()
+  const formData = compose("", attachment)
+  formData.set("reply_to_id", replyId)
+
+  const state = await sendMessageAction("test-conversation", formData)
+
+  assert.equal(state.success, true)
+  assert.equal(sentMessages[0][1].get("reply_to_id"), replyId)
+  assert.equal(sentMessages[0][1].get("attachment"), attachment)
+  assert.equal(sentMessages[0][1].has("body"), false)
+})
+
+test("invalid reply identifiers are rejected before contacting the API", async () => {
+  for (const replyId of [
+    "not-a-message-id",
+    "   ",
+    new File(["message-id"], "message.txt", { type: "text/plain" }),
+  ]) {
+    const formData = compose("A reply")
+    formData.set("reply_to_id", replyId)
+
+    const state = await sendMessageAction("test-conversation", formData)
+
+    assert.equal(state.success, false)
+    assert.ok(state.errors.reply_to_id.length)
+  }
+  assert.equal(sentMessages.length, 0)
+})
+
+test("selecting a reply target alone does not create an empty message", async () => {
+  const formData = compose()
+  formData.set("reply_to_id", "c7e3a481-a449-4e10-b4dd-9109d2205599")
+
+  const state = await sendMessageAction("test-conversation", formData)
+
+  assert.equal(state.success, false)
+  assert.ok(state.errors.body.length)
+  assert.equal(sentMessages.length, 0)
 })
 
 test("missing or whitespace-only body without an attachment is rejected", async () => {

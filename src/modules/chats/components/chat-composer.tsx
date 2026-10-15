@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useTransition } from "react"
+import { useEffect, useRef, useTransition, type ClipboardEvent } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { LoaderCircleIcon, PaperclipIcon, SendIcon } from "lucide-react"
 import { useForm, useWatch } from "react-hook-form"
@@ -27,36 +27,107 @@ import {
   applyServerErrors,
   runUploadAction,
 } from "@/lib/form-utils"
-import { CHAT_ATTACHMENT_ACCEPT } from "@/lib/validation"
+import {
+  CHAT_ATTACHMENT_ACCEPT,
+  chatAttachmentFileSchema,
+} from "@/lib/validation"
 import { prepareImageUploads } from "@/lib/image-upload"
 import { sendMessageAction } from "@/modules/chats/actions"
+import { ChatEmojiPicker } from "@/modules/chats/components/chat-emoji-picker"
+import { ChatReplyPreview } from "@/modules/chats/components/chat-reply-preview"
 import {
   sendMessageSchema,
   type SendMessageValues,
 } from "@/modules/chats/schemas/chats"
-import type { ChatMessage } from "@/types/chat"
+import type { ChatMessage, ChatReply } from "@/types/chat"
 
 export function ChatComposer({
   conversationSlug,
   socketId,
+  replyTo,
+  onCancelReply,
   onSent,
 }: {
   conversationSlug: string
   socketId?: string
-  onSent: (message: ChatMessage) => void
+  replyTo?: ChatReply | null
+  onCancelReply?: () => void
+  onSent: (message: ChatMessage, replyToId?: string | null) => void
 }) {
   const [isPending, startTransition] = useTransition()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const form = useForm<SendMessageValues>({
     resolver: zodResolver(sendMessageSchema),
     defaultValues: { body: "", attachment: undefined },
   })
   const attachment = useWatch({ control: form.control, name: "attachment" })
 
+  useEffect(() => {
+    if (replyTo?.id) textareaRef.current?.focus()
+    form.clearErrors("reply_to_id")
+  }, [form, replyTo?.id])
+
+  const pasteImage = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (isPending) return
+
+    const image =
+      Array.from(event.clipboardData.items ?? [])
+        .filter(
+          (item) => item.kind === "file" && item.type.startsWith("image/")
+        )
+        .map((item) => item.getAsFile())
+        .find((file) => file !== null) ??
+      Array.from(event.clipboardData.files ?? []).find((file) =>
+        file.type.startsWith("image/")
+      )
+
+    if (!image) return
+    event.preventDefault()
+
+    const parsed = chatAttachmentFileSchema("Ảnh dán không hợp lệ.").safeParse(
+      image
+    )
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message || "Không thể dán ảnh này.")
+      return
+    }
+
+    form.setValue("attachment", parsed.data, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    })
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  const insertEmoji = (emoji: string) => {
+    if (isPending) return
+
+    const textarea = textareaRef.current
+    const body = form.getValues("body") ?? ""
+    const start = textarea?.selectionStart ?? body.length
+    const end = textarea?.selectionEnd ?? body.length
+    const nextBody = body.slice(0, start) + emoji + body.slice(end)
+
+    form.setValue("body", nextBody, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    })
+
+    requestAnimationFrame(() => {
+      if (!textarea?.isConnected) return
+      textarea.focus()
+      textarea.setSelectionRange(start + emoji.length, start + emoji.length)
+    })
+  }
+
   const onSubmit = form.handleSubmit((values) => {
     const formData = new FormData()
     appendOptionalString(formData, "body", values.body)
     appendOptionalFile(formData, "attachment", values.attachment)
+    if (replyTo) formData.set("reply_to_id", replyTo.id)
     if (socketId) formData.set("socket_id", socketId)
 
     startTransition(async () => {
@@ -69,7 +140,7 @@ export function ChatComposer({
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
 
       if (state.success && state.data) {
-        onSent(state.data)
+        onSent(state.data, replyTo?.id ?? null)
         form.reset({ body: "", attachment: undefined })
         return
       }
@@ -85,6 +156,18 @@ export function ChatComposer({
         noValidate
         onSubmit={onSubmit}
       >
+        {replyTo ? (
+          <ChatReplyPreview
+            className="mb-3 max-w-none"
+            reply={replyTo}
+            onCancel={isPending ? undefined : onCancelReply}
+          />
+        ) : null}
+        {form.formState.errors.reply_to_id?.message ? (
+          <p className="mb-2 text-sm text-destructive" role="alert">
+            {form.formState.errors.reply_to_id.message}
+          </p>
+        ) : null}
         <FormField
           control={form.control}
           name="body"
@@ -97,10 +180,15 @@ export function ChatComposer({
                     aria-label="Nội dung tin nhắn"
                     className="max-h-36 min-h-12"
                     disabled={isPending}
-                    placeholder="Nhập tin nhắn..."
+                    placeholder="Nhập tin nhắn hoặc dán ảnh..."
                     rows={1}
                     {...field}
+                    ref={(node) => {
+                      field.ref(node)
+                      textareaRef.current = node
+                    }}
                     value={field.value ?? ""}
+                    onPaste={pasteImage}
                     onKeyDown={(event) => {
                       if (
                         event.key === "Enter" &&
@@ -129,6 +217,11 @@ export function ChatComposer({
                       >
                         <PaperclipIcon />
                       </InputGroupButton>
+                      <ChatEmojiPicker
+                        disabled={isPending}
+                        focusTarget={textareaRef}
+                        onSelect={insertEmoji}
+                      />
                       {attachment instanceof File ? (
                         <SelectedFilePreview
                           compact
