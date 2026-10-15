@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useRef, useState, useTransition } from "react"
+import { Fragment, useEffect, useRef, useState, useTransition } from "react"
 import {
   CheckCheckIcon,
   CheckIcon,
@@ -14,7 +14,6 @@ import { toast } from "sonner"
 
 import { EmptyState } from "@/components/layout/empty-state"
 import { MediaImage } from "@/components/media-image"
-import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"
 import {
   Item,
@@ -27,17 +26,45 @@ import {
   Message,
   MessageAvatar,
   MessageContent,
-  MessageFooter,
   MessageGroup,
 } from "@/components/ui/message"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { UserAvatar } from "@/components/user-avatar"
-import { formatCurrency, formatDate } from "@/lib/format"
+import { formatCurrency, formatDate, formatShortDate } from "@/lib/format"
+import { cn } from "@/lib/utils"
 import { loadChatHistoryAction } from "@/modules/chats/actions"
 import { ChatImageAttachment } from "@/modules/chats/components/chat-image-attachment"
 import { ChatReplyPreview } from "@/modules/chats/components/chat-reply-preview"
 import type { ChatHistoryResponse } from "@/api/chats/types"
 import type { ChatMessage } from "@/types/chat"
+
+const messageTime = new Intl.DateTimeFormat("vi-VN", {
+  timeZone: "Asia/Ho_Chi_Minh",
+  hour: "2-digit",
+  minute: "2-digit",
+})
+
+function messageDay(message?: ChatMessage) {
+  return message?.created_at && Number.isFinite(Date.parse(message.created_at))
+    ? formatShortDate(message.created_at)
+    : null
+}
+
+function continuesGroup(
+  previous: ChatMessage | undefined,
+  current: ChatMessage
+) {
+  if (
+    !previous?.created_at ||
+    !current.created_at ||
+    previous.sender.id !== current.sender.id ||
+    messageDay(previous) !== messageDay(current)
+  ) {
+    return false
+  }
+  const gap = Date.parse(current.created_at) - Date.parse(previous.created_at)
+  return gap >= 0 && gap <= 5 * 60 * 1000
+}
 
 export function ChatMessageList({
   conversationSlug,
@@ -135,10 +162,10 @@ export function ChatMessageList({
   return (
     <div
       ref={containerRef}
-      className="min-h-0 flex-1 overflow-hidden bg-muted/20"
+      className="min-h-0 flex-1 overflow-hidden bg-background"
     >
       <ScrollArea className="h-full min-h-0">
-        <MessageGroup className="mx-auto w-full max-w-4xl gap-4 p-4 sm:p-6">
+        <MessageGroup className="mx-auto w-full max-w-4xl gap-0 px-3 py-4 sm:px-6">
           {pagination.has_more ? (
             <Button
               className="self-center"
@@ -161,138 +188,228 @@ export function ChatMessageList({
             />
           ) : null}
 
-          {messages.map((message) => {
+          {messages.map((message, index) => {
             const fromCurrentUser = message.sender.id === currentUserId
             const replyTo = message.reply_to
+            const previous = messages[index - 1]
+            const next = messages[index + 1]
+            const continuesPrevious = continuesGroup(previous, message)
+            const continuesNext = next ? continuesGroup(message, next) : false
+            const day = messageDay(message)
+            const showDate = day && day !== messageDay(previous)
+            const hasTimestamp =
+              message.created_at &&
+              Number.isFinite(Date.parse(message.created_at))
+            const showBody =
+              message.body &&
+              !(
+                message.attachment &&
+                ["[Hình ảnh]", "[Video]", "[Tệp đính kèm]"].includes(
+                  message.body
+                )
+              )
             return (
-              <Message
-                key={message.id}
-                ref={(element) => {
-                  if (element) messageElements.current.set(message.id, element)
-                  else messageElements.current.delete(message.id)
-                }}
-                align={fromCurrentUser ? "end" : "start"}
-                className={
-                  highlightedMessageId === message.id
-                    ? "rounded-xl bg-primary/10 ring-2 ring-primary/30"
-                    : undefined
-                }
-                data-message-id={message.id}
-                tabIndex={-1}
-              >
-                <MessageAvatar>
-                  <UserAvatar
-                    name={message.sender.name}
-                    size="sm"
-                    src={message.sender.avatar_url}
-                  />
-                </MessageAvatar>
-                <MessageContent>
-                  {replyTo ? (
-                    <ChatReplyPreview
-                      className={fromCurrentUser ? "self-end" : ""}
-                      reply={replyTo}
-                      onJump={() => jumpToMessage(replyTo.id)}
-                    />
-                  ) : null}
-                  {message.product ? (
-                    <Item
-                      className="max-w-sm bg-card"
-                      render={
-                        <Link
-                          href={`/shops/${message.product.shop_code}/products/${message.product.slug}`}
-                        />
-                      }
-                      size="sm"
-                      variant="outline"
+              <Fragment key={message.id}>
+                {showDate ? (
+                  <div className="flex justify-center pt-2 pb-3">
+                    <span className="rounded-full bg-muted/60 px-3 py-1 text-[11px] text-muted-foreground">
+                      {day === formatShortDate(new Date().toISOString())
+                        ? "Hôm nay"
+                        : day}
+                    </span>
+                  </div>
+                ) : null}
+                <Message
+                  ref={(element) => {
+                    if (element)
+                      messageElements.current.set(message.id, element)
+                    else messageElements.current.delete(message.id)
+                  }}
+                  align={fromCurrentUser ? "end" : "start"}
+                  className={cn(
+                    "items-end gap-2 rounded-xl transition-colors outline-none",
+                    continuesPrevious ? "mt-1" : "mt-3",
+                    highlightedMessageId === message.id &&
+                      "bg-primary/10 ring-2 ring-primary/30"
+                  )}
+                  data-message-id={message.id}
+                  tabIndex={-1}
+                >
+                  {!fromCurrentUser ? (
+                    <div
+                      className={cn(
+                        "flex w-7 shrink-0 self-end",
+                        !continuesNext && "mb-6"
+                      )}
                     >
-                      <ItemMedia>
-                        <MediaImage
-                          alt={message.product.name}
-                          className="size-12 rounded-md"
-                          fallbackLabel="Chưa có ảnh"
-                          sizes="48px"
-                          src={message.product.image_url}
-                        />
-                      </ItemMedia>
-                      <ItemContent>
-                        <ItemTitle>{message.product.name}</ItemTitle>
-                        <ItemDescription>
-                          {formatCurrency(message.product.price)}
-                        </ItemDescription>
-                      </ItemContent>
-                    </Item>
-                  ) : null}
-
-                  {message.body ? (
-                    <Bubble
-                      align={fromCurrentUser ? "end" : "start"}
-                      variant={fromCurrentUser ? "default" : "secondary"}
-                    >
-                      <BubbleContent className="whitespace-pre-wrap">
-                        {message.body}
-                      </BubbleContent>
-                    </Bubble>
-                  ) : null}
-
-                  {message.attachment ? (
-                    <div className={fromCurrentUser ? "self-end" : ""}>
-                      {message.attachment.type === "image" ? (
-                        <ChatImageAttachment
-                          messageId={message.id}
-                          name={message.attachment.name}
-                        />
-                      ) : null}
-                      <Button
-                        nativeButton={false}
-                        render={
-                          <a
-                            href={`/api/chat-attachments/${encodeURIComponent(message.id)}`}
-                            rel="noreferrer"
-                            target="_blank"
+                      {!continuesNext ? (
+                        <MessageAvatar className="min-w-7 bg-transparent">
+                          <UserAvatar
+                            className="size-7"
+                            name={message.sender.name}
+                            size="sm"
+                            src={message.sender.avatar_url}
                           />
-                        }
-                        size="sm"
-                        variant="outline"
-                      >
-                        {message.attachment.type === "image" ? (
-                          <PaperclipIcon />
-                        ) : (
-                          <FileIcon />
-                        )}
-                        <span className="max-w-52 truncate">
-                          {message.attachment.name}
-                        </span>
-                      </Button>
+                        </MessageAvatar>
+                      ) : null}
                     </div>
                   ) : null}
-
-                  <MessageFooter>
-                    <Button
-                      aria-label={`Trả lời tin nhắn của ${message.sender.name}`}
-                      className="mr-2 text-muted-foreground"
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                      onClick={() => onReply(message)}
+                  <MessageContent
+                    className={cn(
+                      "w-fit max-w-[calc(100%-2.25rem)] gap-1 sm:max-w-[75%]",
+                      fromCurrentUser ? "items-end" : "items-start"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "flex max-w-full min-w-0 items-center gap-1",
+                        fromCurrentUser && "flex-row-reverse"
+                      )}
                     >
-                      <ReplyIcon />
-                      Trả lời
-                    </Button>
-                    {formatDate(message.created_at)}
-                    {fromCurrentUser ? (
-                      message.read_at ? (
-                        <CheckCheckIcon
-                          aria-label="Đã xem"
-                          className="ml-1 text-primary"
-                        />
-                      ) : (
-                        <CheckIcon aria-label="Đã gửi" className="ml-1" />
-                      )
+                      <div
+                        className={cn(
+                          "max-w-full min-w-0 overflow-hidden rounded-2xl",
+                          fromCurrentUser
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted/70 text-foreground",
+                          continuesPrevious &&
+                            (fromCurrentUser
+                              ? "rounded-tr-md"
+                              : "rounded-tl-md"),
+                          continuesNext &&
+                            (fromCurrentUser
+                              ? "rounded-br-md"
+                              : "rounded-bl-md")
+                        )}
+                        title={
+                          hasTimestamp
+                            ? formatDate(message.created_at)
+                            : undefined
+                        }
+                      >
+                        {replyTo ? (
+                          <ChatReplyPreview
+                            className="mx-1.5 mt-1.5 mb-0.5"
+                            outgoing={fromCurrentUser}
+                            reply={replyTo}
+                            variant="message"
+                            onJump={() => jumpToMessage(replyTo.id)}
+                          />
+                        ) : null}
+                        {message.product ? (
+                          <div className="p-1.5">
+                            <Item
+                              className="max-w-sm bg-card text-foreground"
+                              render={
+                                <Link
+                                  href={`/shops/${message.product.shop_code}/products/${message.product.slug}`}
+                                />
+                              }
+                              size="sm"
+                              variant="outline"
+                            >
+                              <ItemMedia>
+                                <MediaImage
+                                  alt={message.product.name}
+                                  className="size-12 rounded-md"
+                                  fallbackLabel="Chưa có ảnh"
+                                  sizes="48px"
+                                  src={message.product.image_url}
+                                />
+                              </ItemMedia>
+                              <ItemContent>
+                                <ItemTitle>{message.product.name}</ItemTitle>
+                                <ItemDescription>
+                                  {formatCurrency(message.product.price)}
+                                </ItemDescription>
+                              </ItemContent>
+                            </Item>
+                          </div>
+                        ) : null}
+
+                        {showBody ? (
+                          <div className="px-3.5 py-2 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap">
+                            {message.body}
+                          </div>
+                        ) : null}
+
+                        {message.attachment ? (
+                          <div className="p-1.5 text-foreground">
+                            {message.attachment.type === "image" ? (
+                              <ChatImageAttachment
+                                messageId={message.id}
+                                name={message.attachment.name}
+                              />
+                            ) : null}
+                            <Button
+                              className="max-w-full"
+                              nativeButton={false}
+                              render={
+                                <a
+                                  href={`/api/chat-attachments/${encodeURIComponent(message.id)}`}
+                                  rel="noreferrer"
+                                  target="_blank"
+                                />
+                              }
+                              size="sm"
+                              variant="outline"
+                            >
+                              {message.attachment.type === "image" ? (
+                                <PaperclipIcon />
+                              ) : (
+                                <FileIcon />
+                              )}
+                              <span className="max-w-52 truncate">
+                                {message.attachment.name}
+                              </span>
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                      <Button
+                        aria-label={`Trả lời tin nhắn của ${message.sender.name}`}
+                        className="shrink-0 rounded-full text-muted-foreground opacity-60 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within/message:opacity-100 [@media(hover:hover)]:group-hover/message:opacity-100"
+                        size="icon-sm"
+                        title="Trả lời"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => onReply(message)}
+                      >
+                        <ReplyIcon />
+                      </Button>
+                    </div>
+                    {!continuesNext ? (
+                      <div className="flex items-center gap-1 px-1 pb-1 text-[10px] leading-4 text-muted-foreground">
+                        <time
+                          dateTime={message.created_at ?? undefined}
+                          title={
+                            hasTimestamp
+                              ? formatDate(message.created_at)
+                              : undefined
+                          }
+                        >
+                          {hasTimestamp
+                            ? messageTime.format(new Date(message.created_at!))
+                            : "—"}
+                        </time>
+                        {fromCurrentUser ? (
+                          message.read_at ? (
+                            <CheckCheckIcon
+                              aria-label="Đã xem"
+                              className="size-3.5 text-muted-foreground"
+                            />
+                          ) : (
+                            <CheckIcon
+                              aria-label="Đã gửi"
+                              className="size-3.5"
+                            />
+                          )
+                        ) : null}
+                      </div>
                     ) : null}
-                  </MessageFooter>
-                </MessageContent>
-              </Message>
+                  </MessageContent>
+                </Message>
+              </Fragment>
             )
           })}
           <div ref={bottomRef} aria-hidden="true" />

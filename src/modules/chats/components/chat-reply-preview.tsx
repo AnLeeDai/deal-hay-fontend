@@ -27,21 +27,40 @@ export function ChatReplyPreview({
   onCancel,
   onJump,
   className,
+  variant = "draft",
+  outgoing = false,
 }: {
   reply: ChatReply
   onCancel?: () => void
   onJump?: () => void
   className?: string
+  variant?: "draft" | "message"
+  outgoing?: boolean
 }) {
   const content = (
     <>
-      <span className="flex items-center gap-1 text-xs font-medium text-primary">
-        <ReplyIcon aria-hidden="true" className="size-3.5 shrink-0" />
+      <span
+        className={cn(
+          "flex items-center gap-1 text-xs font-medium",
+          variant === "draft" ? "text-primary" : "text-inherit"
+        )}
+      >
+        {variant === "draft" ? (
+          <ReplyIcon aria-hidden="true" className="size-3.5 shrink-0" />
+        ) : null}
         <span className="truncate">
-          {onCancel ? "Đang trả lời" : "Trả lời"} {reply.sender.name}
+          {variant === "draft" ? "Đang trả lời " : ""}
+          {reply.sender.name}
         </span>
       </span>
-      <span className="line-clamp-2 text-xs wrap-break-word text-muted-foreground">
+      <span
+        className={cn(
+          "line-clamp-2 text-xs leading-relaxed wrap-break-word",
+          variant === "message" && outgoing
+            ? "text-primary-foreground/80"
+            : "text-muted-foreground"
+        )}
+      >
         {chatReplySummary(reply)}
       </span>
     </>
@@ -50,7 +69,12 @@ export function ChatReplyPreview({
   return (
     <div
       className={cn(
-        "flex max-w-sm min-w-0 items-start gap-2 rounded-md border-l-3 border-primary bg-muted/60 p-2",
+        "flex min-w-0 items-start gap-2 border-l-2 p-2",
+        variant === "draft"
+          ? "max-w-sm rounded-lg border-primary/60 bg-muted/40"
+          : outgoing
+            ? "max-w-full rounded-md border-primary-foreground/50 bg-primary-foreground/10 text-primary-foreground"
+            : "max-w-full rounded-md border-primary/40 bg-background/65 text-foreground/80",
         className
       )}
     >

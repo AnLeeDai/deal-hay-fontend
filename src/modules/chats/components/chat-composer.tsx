@@ -152,13 +152,13 @@ export function ChatComposer({
   return (
     <Form {...form}>
       <form
-        className="shrink-0 border-t bg-card p-3 sm:p-4"
+        className="shrink-0 border-t border-border/60 bg-card px-3 py-3 sm:px-4"
         noValidate
         onSubmit={onSubmit}
       >
         {replyTo ? (
           <ChatReplyPreview
-            className="mb-3 max-w-none"
+            className="mb-2 max-w-none"
             reply={replyTo}
             onCancel={isPending ? undefined : onCancelReply}
           />
@@ -168,6 +168,23 @@ export function ChatComposer({
             {form.formState.errors.reply_to_id.message}
           </p>
         ) : null}
+        {attachment instanceof File ? (
+          <SelectedFilePreview
+            compact
+            className="mb-2 max-w-full sm:max-w-sm"
+            file={attachment}
+            onRemove={
+              isPending
+                ? undefined
+                : () => {
+                    form.setValue("attachment", undefined, {
+                      shouldValidate: true,
+                    })
+                    if (fileInputRef.current) fileInputRef.current.value = ""
+                  }
+            }
+          />
+        ) : null}
         <FormField
           control={form.control}
           name="body"
@@ -175,13 +192,38 @@ export function ChatComposer({
             <FormItem>
               <FormLabel className="sr-only">Nội dung tin nhắn</FormLabel>
               <FormControl>
-                <InputGroup className="h-auto">
+                <InputGroup className="h-auto items-end rounded-2xl bg-muted/30 p-1 shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-2 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/15">
+                  <InputGroupAddon
+                    align="inline-start"
+                    className="gap-0 self-end py-1 pl-1 has-[>button]:ml-0"
+                  >
+                    <InputGroupButton
+                      aria-label="Đính kèm tệp"
+                      className="rounded-full"
+                      disabled={isPending}
+                      size="icon-sm"
+                      title="Đính kèm tệp"
+                      onClick={() => {
+                        if (!fileInputRef.current) return
+                        fileInputRef.current.value = ""
+                        fileInputRef.current.click()
+                      }}
+                    >
+                      <PaperclipIcon />
+                    </InputGroupButton>
+                    <ChatEmojiPicker
+                      disabled={isPending}
+                      focusTarget={textareaRef}
+                      onSelect={insertEmoji}
+                    />
+                  </InputGroupAddon>
                   <InputGroupTextarea
                     aria-label="Nội dung tin nhắn"
-                    className="max-h-36 min-h-12"
+                    className="max-h-32 min-h-10 min-w-0 px-2 py-2.5"
                     disabled={isPending}
-                    placeholder="Nhập tin nhắn hoặc dán ảnh..."
+                    placeholder="Nhắn tin..."
                     rows={1}
+                    title="Enter để gửi · Shift + Enter để xuống dòng · Dán ảnh bằng Ctrl/⌘ + V"
                     {...field}
                     ref={(node) => {
                       field.ref(node)
@@ -201,50 +243,15 @@ export function ChatComposer({
                     }}
                   />
                   <InputGroupAddon
-                    align="block-end"
-                    className="justify-between border-t"
+                    align="inline-end"
+                    className="self-end py-1 pr-1 has-[>button]:mr-0"
                   >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <InputGroupButton
-                        aria-label="Đính kèm tệp"
-                        disabled={isPending}
-                        size="icon-sm"
-                        onClick={() => {
-                          if (!fileInputRef.current) return
-                          fileInputRef.current.value = ""
-                          fileInputRef.current.click()
-                        }}
-                      >
-                        <PaperclipIcon />
-                      </InputGroupButton>
-                      <ChatEmojiPicker
-                        disabled={isPending}
-                        focusTarget={textareaRef}
-                        onSelect={insertEmoji}
-                      />
-                      {attachment instanceof File ? (
-                        <SelectedFilePreview
-                          compact
-                          file={attachment}
-                          onRemove={() => {
-                            form.setValue("attachment", undefined, {
-                              shouldValidate: true,
-                            })
-                            if (fileInputRef.current) {
-                              fileInputRef.current.value = ""
-                            }
-                          }}
-                        />
-                      ) : (
-                        <span className="hidden text-xs text-muted-foreground sm:inline">
-                          Enter để gửi · Shift + Enter để xuống dòng
-                        </span>
-                      )}
-                    </div>
                     <InputGroupButton
                       aria-label="Gửi tin nhắn"
+                      className="rounded-full"
                       disabled={isPending}
                       size="icon-sm"
+                      title="Gửi tin nhắn"
                       type="submit"
                       variant="default"
                     >
