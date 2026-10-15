@@ -81,6 +81,16 @@ const productFields = {
     .min(1000, "Giá bán tối thiểu là 1.000đ.")
     .max(999999999, "Giá bán quá lớn."),
   label: optionalLabelSchema,
+  old_price: optionalVariantPriceSchema.optional(),
+  video_url: z
+    .union([z.url({ protocol: /^https$/ }), z.literal("")])
+    .optional(),
+  advertisement_video_url: z
+    .union([z.url({ protocol: /^https$/ }), z.literal("")])
+    .optional(),
+  advertisement_duration_seconds: z
+    .union([z.number().int().min(5).max(300), z.literal("")])
+    .optional(),
   description: optionalDescriptionSchema,
   image: imageFileSchema("Vui lòng tải ảnh đại diện sản phẩm."),
   gallery_images: z
@@ -111,6 +121,27 @@ export const createProductSchema = z
     }),
   ])
   .superRefine((value, context) => {
+    if (typeof value.old_price === "number" && value.old_price <= value.price)
+      context.addIssue({
+        code: "custom",
+        path: ["old_price"],
+        message: "Giá gốc phải lớn hơn giá ưu đãi.",
+      })
+    if (typeof value.old_price === "number" && !value.advertisement_video_url)
+      context.addIssue({
+        code: "custom",
+        path: ["advertisement_video_url"],
+        message: "Vui lòng nhập video quảng cáo để khách nhận ưu đãi.",
+      })
+    if (
+      value.advertisement_video_url &&
+      typeof value.advertisement_duration_seconds !== "number"
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["advertisement_duration_seconds"],
+        message: "Vui lòng nhập thời lượng đầy đủ của video quảng cáo.",
+      })
     const totalImageBytes = [value.image, ...value.gallery_images].reduce(
       (total, file) => total + file.size,
       0

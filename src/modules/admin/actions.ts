@@ -8,9 +8,11 @@ import {
   deleteCategory,
   deleteShopProduct,
   reviewTicket,
+  startAdminChat,
   toggleUserLock,
   updateCategory,
 } from "@/api/admin/mutations"
+import { requireAdmin } from "@/lib/auth"
 import type { ActionState } from "@/types/forms"
 import {
   categorySchema,
@@ -80,7 +82,24 @@ export async function toggleUserLockAction(
   lockReason?: string
 ): Promise<void> {
   await toggleUserLock(userId, { action, lock_reason: lockReason ?? null })
-  revalidatePath("/admin/users")
+  revalidatePath("/", "layout")
+}
+
+export async function startAdminChatAction(
+  userId: string
+): Promise<ActionState & { conversationSlug?: string }> {
+  await requireAdmin()
+  try {
+    const response = await startAdminChat(userId)
+    revalidatePath("/chats")
+    return {
+      success: true,
+      message: "Đã mở cuộc trò chuyện.",
+      conversationSlug: response.conversation.slug,
+    }
+  } catch (error) {
+    return toState(error, "Không thể mở cuộc trò chuyện với người dùng này.")
+  }
 }
 
 export async function reviewTicketAction(

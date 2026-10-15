@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
 import { FormSubmitButton } from "@/components/form-submit-button"
+import { PasswordInput } from "@/components/password-input"
 import {
   Card,
   CardContent,
@@ -88,11 +89,7 @@ export function SignUpForm({ redirectTo }: { redirectTo?: string }) {
                 <FormItem>
                   <FormLabel>Mật khẩu</FormLabel>
                   <FormControl>
-                    <Input
-                      autoComplete="new-password"
-                      type="password"
-                      {...field}
-                    />
+                    <PasswordInput autoComplete="new-password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -105,11 +102,7 @@ export function SignUpForm({ redirectTo }: { redirectTo?: string }) {
                 <FormItem>
                   <FormLabel>Xác nhận mật khẩu</FormLabel>
                   <FormControl>
-                    <Input
-                      autoComplete="new-password"
-                      type="password"
-                      {...field}
-                    />
+                    <PasswordInput autoComplete="new-password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -127,8 +120,25 @@ export function SignUpForm({ redirectTo }: { redirectTo?: string }) {
                       onCheckedChange={field.onChange}
                     />
                     <span>
-                      Tôi đồng ý với điều khoản sử dụng và chính sách của Deal
-                      Hay.
+                      Tôi đồng ý với{" "}
+                      <Link
+                        className="text-primary underline"
+                        href="/terms"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        điều khoản sử dụng
+                      </Link>{" "}
+                      và{" "}
+                      <Link
+                        className="text-primary underline"
+                        href="/privacy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        chính sách bảo mật
+                      </Link>{" "}
+                      của Deal Hay.
                     </span>
                   </FormLabel>
                   <FormMessage />

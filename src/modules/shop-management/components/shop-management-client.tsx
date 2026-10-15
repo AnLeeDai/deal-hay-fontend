@@ -27,6 +27,7 @@ import { toast } from "sonner"
 import { FormDateTimePicker } from "@/components/form-date-time-picker"
 import { FormSelect } from "@/components/form-select"
 import { FormSubmitButton } from "@/components/form-submit-button"
+import { AddressFields } from "@/components/address-fields"
 import { PageHeader } from "@/components/layout/page-header"
 import { MediaImage } from "@/components/media-image"
 import { SelectedFilePreview } from "@/components/selected-file-preview"
@@ -126,6 +127,7 @@ import {
   type ReplyReviewValues,
 } from "@/modules/shop-management/schemas/shop-management"
 import { CreateProductForm } from "@/modules/shop-management/components/create-product-form"
+import { ProductPricingForm } from "@/modules/shop-management/components/product-pricing-form"
 
 function ProductInventoryForm({ product }: { product: ShopProduct }) {
   const [isPending, startTransition] = useTransition()
@@ -524,31 +526,10 @@ function ShopProfileForm({ user }: { user: User }) {
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="shop_province"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tỉnh / thành</FormLabel>
-                <FormControl>
-                  <Input type="text" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="shop_ward"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Phường / xã</FormLabel>
-                <FormControl>
-                  <Input type="text" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+          <AddressFields
+            form={form}
+            provinceName="shop_province"
+            wardName="shop_ward"
           />
           <FormField
             control={form.control}
@@ -943,6 +924,7 @@ function ProductListItem({ product }: { product: ShopProduct }) {
           ) : null}
         </div>
       </div>
+      <ProductPricingForm product={product} />
       <div className="grid grid-cols-2 gap-2 border-t pt-3">
         <Button
           className="w-full"

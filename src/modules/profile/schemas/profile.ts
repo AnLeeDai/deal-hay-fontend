@@ -17,22 +17,38 @@ const optionalPhoneString = z.union([
 ])
 const optionalMessageString = z.union([z.string().trim(), z.literal("")])
 
-export const updateProfileSchema = z.object({
-  full_name: requiredText("Vui lòng nhập họ và tên.").max(
-    255,
-    "Họ và tên không được vượt quá 255 ký tự."
-  ),
-  email: z
-    .string()
-    .trim()
-    .min(1, "Vui lòng nhập email.")
-    .email("Email không đúng định dạng.")
-    .max(255, "Email không được vượt quá 255 ký tự."),
-  phone_number: optionalPhoneString,
-  province: optionalProfileString,
-  ward: optionalProfileString,
-  address_detail: optionalProfileString,
-})
+export const updateProfileSchema = z
+  .object({
+    full_name: requiredText("Vui lòng nhập họ và tên.").max(
+      255,
+      "Họ và tên không được vượt quá 255 ký tự."
+    ),
+    email: z
+      .string()
+      .trim()
+      .min(1, "Vui lòng nhập email.")
+      .email("Email không đúng định dạng.")
+      .max(255, "Email không được vượt quá 255 ký tự."),
+    phone_number: optionalPhoneString,
+    province: optionalProfileString,
+    ward: optionalProfileString,
+    address_detail: optionalProfileString,
+  })
+  .superRefine((value, context) => {
+    if (!value.province && !value.ward && !value.address_detail) return
+    if (!value.province)
+      context.addIssue({
+        code: "custom",
+        path: ["province"],
+        message: "Vui lòng chọn tỉnh/thành từ danh sách.",
+      })
+    if (!value.ward)
+      context.addIssue({
+        code: "custom",
+        path: ["ward"],
+        message: "Vui lòng chọn phường/xã thuộc tỉnh/thành đã chọn.",
+      })
+  })
 
 export const updatePasswordSchema = z
   .object({

@@ -10,12 +10,14 @@ type ProductGalleryProps = {
   name: string
   imageUrl: string | null
   images: Array<{ id: string; image_url: string }>
+  videoUrl?: string | null
 }
 
 export function ProductGallery({
   name,
   imageUrl,
   images,
+  videoUrl,
 }: ProductGalleryProps) {
   const gallery = useMemo(
     () =>
@@ -38,6 +40,16 @@ export function ProductGallery({
 
   return (
     <div className="space-y-3">
+      {videoUrl ? (
+        <video
+          className="aspect-video w-full rounded-lg bg-black"
+          controls
+          playsInline
+          preload="metadata"
+          src={videoUrl}
+          aria-label={`Video ${name}`}
+        />
+      ) : null}
       <Card className="gap-0 py-0">
         <CardContent className="p-0">
           <MediaImage

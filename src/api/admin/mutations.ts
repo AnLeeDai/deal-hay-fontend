@@ -1,6 +1,13 @@
 import { apiFetch } from "@/api/client"
 import { adminRoutes } from "@/api/admin/routes"
 import type { ApiMessageResponse } from "@/types/common"
+import type { ConversationSummary } from "@/types/chat"
+
+export function startAdminChat(
+  userId: string
+): Promise<{ conversation: ConversationSummary }> {
+  return apiFetch({ method: "POST", path: adminRoutes.startChat(userId) })
+}
 
 export function toggleUserLock(
   userId: string,

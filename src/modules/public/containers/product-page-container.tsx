@@ -78,8 +78,14 @@ export async function ProductPageContainer({
           imageUrl={data.product.image_url}
           images={data.product.images}
           name={data.product.name}
+          videoUrl={data.product.video_url}
         />
-        <ProductInteractions shop={data.shop} product={data.product} />
+        <ProductInteractions
+          shop={data.shop}
+          product={data.product}
+          canReview={data.canReview}
+          hasReview={Boolean(data.viewerReview)}
+        />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1fr_360px]">

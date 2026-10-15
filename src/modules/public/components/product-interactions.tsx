@@ -8,11 +8,11 @@ import {
   BadgeCheckIcon,
   HeartIcon,
   LoaderCircleIcon,
-  MessageCircleIcon,
   PackageCheckIcon,
   PaperclipIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
+  ShoppingBagIcon,
 } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -66,6 +66,7 @@ import {
   variantHasOption,
 } from "@/modules/public/lib/variant-selection"
 import type { PublicProduct, PublicShop } from "@/types/catalog"
+import { ProductOrderDialog } from "@/modules/public/components/product-order-dialog"
 
 function ReviewProductForm({
   shopCode,
@@ -190,12 +191,17 @@ function ReviewProductForm({
 export function ProductInteractions({
   shop,
   product,
+  canReview = false,
+  hasReview = false,
 }: {
   shop: PublicShop
   product: PublicProduct
+  canReview?: boolean
+  hasReview?: boolean
 }) {
   const [isPending, startTransition] = useTransition()
   const [isChatPending, startChatTransition] = useTransition()
+  const [orderOpen, setOrderOpen] = useState(false)
   const router = useRouter()
   const [selectedVariantId, setSelectedVariantId] = useState(
     () => defaultProductVariant(product.variants)?.id
@@ -207,6 +213,13 @@ export function ProductInteractions({
       ) ?? defaultProductVariant(product.variants))
     : undefined
   const displayedPrice = selectedVariant?.price ?? product.price
+  const regularPrice =
+    product.old_price && product.old_price > product.price && product.price > 0
+      ? Math.max(
+          displayedPrice,
+          Math.round((displayedPrice * product.old_price) / product.price)
+        )
+      : displayedPrice
   const displayedStock =
     selectedVariant?.stock ?? (hasVariants ? 0 : product.stock)
 
@@ -271,9 +284,29 @@ export function ProductInteractions({
           </CardDescription>
         </CardHeader>
         <CardContent className="gap-5">
-          <p aria-live="polite" className="text-3xl font-semibold text-primary">
-            {formatCurrency(displayedPrice)}
-          </p>
+          <div aria-live="polite" className="space-y-1">
+            {product.advertisement_available &&
+            regularPrice > displayedPrice ? (
+              <>
+                <p className="text-sm text-muted-foreground line-through">
+                  {formatCurrency(regularPrice)}
+                </p>
+                <p className="text-3xl font-semibold text-primary">
+                  {formatCurrency(displayedPrice)}{" "}
+                  <Badge>
+                    -{Math.round((1 - displayedPrice / regularPrice) * 100)}%
+                  </Badge>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Giá ưu đãi sau khi xem hết quảng cáo
+                </p>
+              </>
+            ) : (
+              <p className="text-3xl font-semibold text-primary">
+                {formatCurrency(regularPrice)}
+              </p>
+            )}
+          </div>
           <div className="flex items-center justify-between rounded-lg bg-muted px-4 py-3">
             <span className="flex items-center gap-2 text-sm">
               <PackageCheckIcon className="size-4 text-primary" /> Tình trạng
@@ -360,19 +393,20 @@ export function ProductInteractions({
           <Button
             className="w-full"
             disabled={
-              isPending || isChatPending || (hasVariants && !selectedVariant)
+              isPending ||
+              isChatPending ||
+              displayedStock < 1 ||
+              (hasVariants && !selectedVariant)
             }
             size="lg"
-            onClick={openProductChat}
+            onClick={() => setOrderOpen(true)}
           >
             {isChatPending ? (
               <LoaderCircleIcon className="animate-spin" />
             ) : (
-              <MessageCircleIcon />
+              <ShoppingBagIcon />
             )}
-            {isChatPending
-              ? "Đang mở cuộc trò chuyện..."
-              : "Nhắn tin tư vấn sản phẩm"}
+            {isChatPending ? "Đang mở cuộc trò chuyện..." : "Đặt hàng"}
           </Button>
 
           <Separator />
@@ -461,11 +495,20 @@ export function ProductInteractions({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ReviewProductForm productSlug={product.slug} shopCode={shop.code} />
+          {canReview ? (
+            <ReviewProductForm
+              productSlug={product.slug}
+              shopCode={shop.code}
+            />
+          ) : (
+            <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+              Bạn cần đặt sản phẩm này trước khi đánh giá.
+            </p>
+          )}
           <Separator />
           <Button
             className="w-full"
-            disabled={isPending}
+            disabled={isPending || !hasReview}
             type="button"
             variant="ghost"
             onClick={() =>
@@ -480,6 +523,19 @@ export function ProductInteractions({
           </Button>
         </CardContent>
       </Card>
+      <ProductOrderDialog
+        key={`${product.id}:${selectedVariant?.id ?? "base"}`}
+        open={orderOpen}
+        onOpenChange={setOrderOpen}
+        shop={shop}
+        product={product}
+        variant={selectedVariant}
+        salePrice={displayedPrice}
+        regularPrice={regularPrice}
+        stock={displayedStock}
+        onMessage={openProductChat}
+        messagePending={isChatPending}
+      />
     </div>
   )
 }

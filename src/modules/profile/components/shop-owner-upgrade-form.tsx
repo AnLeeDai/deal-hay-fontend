@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
 import { FormSubmitButton } from "@/components/form-submit-button"
+import { AddressFields } from "@/components/address-fields"
 import {
   Form,
   FormControl,
@@ -141,32 +142,7 @@ export function ShopOwnerUpgradeForm({ user }: { user: User }) {
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="province"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tỉnh / thành</FormLabel>
-                <FormControl>
-                  <Input type="text" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="ward"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Phường / xã</FormLabel>
-                <FormControl>
-                  <Input type="text" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <AddressFields form={form} provinceName="province" wardName="ward" />
         </div>
         <FormField
           control={form.control}

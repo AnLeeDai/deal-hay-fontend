@@ -1,7 +1,8 @@
 "use client"
 
-import { useTransition } from "react"
+import { useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { LockIcon, LockOpenIcon } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -11,6 +12,8 @@ import { EmptyState } from "@/components/layout/empty-state"
 import { PageHeader } from "@/components/layout/page-header"
 import { MediaImage } from "@/components/media-image"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Form,
@@ -25,12 +28,74 @@ import { UserAvatar } from "@/components/user-avatar"
 import { applyServerErrors } from "@/lib/form-utils"
 import type { AdminShop } from "@/types/admin"
 import type { PaginatedResponse } from "@/types/common"
-import { deleteShopProductAction } from "@/modules/admin/actions"
+import {
+  deleteShopProductAction,
+  toggleUserLockAction,
+} from "@/modules/admin/actions"
 import { AdminNavigation } from "@/modules/admin/components/admin-navigation"
 import {
   deleteShopProductSchema,
   type DeleteShopProductValues,
 } from "@/modules/admin/schemas/admin"
+
+function ShopLockForm({ shop }: { shop: AdminShop }) {
+  const [reason, setReason] = useState("")
+  const [pending, startTransition] = useTransition()
+  return (
+    <form
+      className="space-y-2 rounded-lg border p-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        startTransition(async () => {
+          try {
+            await toggleUserLockAction(
+              shop.id,
+              shop.is_active ? "lock" : "unlock",
+              shop.is_active ? reason.trim() : undefined
+            )
+            setReason("")
+            toast.success(
+              shop.is_active ? "Đã khoá gian hàng." : "Đã mở khoá gian hàng."
+            )
+          } catch {
+            toast.error("Không thể cập nhật trạng thái gian hàng.")
+          }
+        })
+      }}
+    >
+      {shop.is_active ? (
+        <>
+          <Label htmlFor={`shop-lock-${shop.id}`}>Lý do khoá gian hàng</Label>
+          <Textarea
+            id={`shop-lock-${shop.id}`}
+            maxLength={500}
+            required
+            disabled={pending}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Khoá gian hàng sẽ ẩn shop và tạm khoá tài khoản chủ shop.
+          </p>
+        </>
+      ) : shop.lock_reason ? (
+        <p>Lý do khoá: {shop.lock_reason}</p>
+      ) : null}
+      <Button
+        disabled={pending || (shop.is_active && !reason.trim())}
+        type="submit"
+        variant={shop.is_active ? "destructive" : "outline"}
+      >
+        {shop.is_active ? <LockIcon /> : <LockOpenIcon />}
+        {pending
+          ? "Đang cập nhật..."
+          : shop.is_active
+            ? "Khoá gian hàng"
+            : "Mở khoá gian hàng"}
+      </Button>
+    </form>
+  )
+}
 
 function ShopProductDeleteForm({
   shopId,
@@ -137,6 +202,7 @@ export function AdminShopsClient({
               </Badge>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
+              <ShopLockForm shop={shop} />
               <p>{shop.shop_address || "Chưa cập nhật địa chỉ shop."}</p>
               <p className="text-muted-foreground">
                 {shop.products_count} sản phẩm • {shop.categories_count} danh

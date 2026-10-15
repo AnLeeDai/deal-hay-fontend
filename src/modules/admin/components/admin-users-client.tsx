@@ -1,7 +1,13 @@
 "use client"
 
 import { useTransition } from "react"
-import { LockIcon, LockOpenIcon, UsersIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
+import {
+  LockIcon,
+  LockOpenIcon,
+  MessageCircleIcon,
+  UsersIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { DataPagination } from "@/components/layout/data-pagination"
@@ -25,7 +31,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { UserAvatar } from "@/components/user-avatar"
-import { toggleUserLockAction } from "@/modules/admin/actions"
+import {
+  startAdminChatAction,
+  toggleUserLockAction,
+} from "@/modules/admin/actions"
 import { AdminNavigation } from "@/modules/admin/components/admin-navigation"
 import type { User } from "@/types/auth"
 import type { PaginatedResponse } from "@/types/common"
@@ -38,10 +47,13 @@ const roleLabels: Record<string, string> = {
 
 export function AdminUsersClient({
   users,
+  currentUserId,
 }: {
   users: PaginatedResponse<User>
+  currentUserId: string
 }) {
   const [pending, startTransition] = useTransition()
+  const router = useRouter()
 
   return (
     <div className="space-y-8">
@@ -105,47 +117,74 @@ export function AdminUsersClient({
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {user.role !== "administrator" ? (
-                          <Button
-                            aria-label={
-                              isActive
-                                ? `Khoá ${user.full_name}`
-                                : `Mở khoá ${user.full_name}`
-                            }
-                            disabled={pending}
-                            size="sm"
-                            variant={isActive ? "destructive" : "outline"}
-                            onClick={() =>
-                              startTransition(async () => {
-                                try {
-                                  await toggleUserLockAction(
-                                    user.id,
-                                    isActive ? "lock" : "unlock",
-                                    isActive
-                                      ? "Khoá bởi quản trị viên"
-                                      : undefined
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {user.id !== currentUserId ? (
+                            <Button
+                              aria-label={`Nhắn tin với ${user.full_name}`}
+                              disabled={pending}
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                startTransition(async () => {
+                                  const state = await startAdminChatAction(
+                                    user.id
                                   )
-                                  toast.success(
-                                    "Đã cập nhật trạng thái tài khoản."
-                                  )
-                                } catch {
-                                  toast.error(
-                                    "Không thể cập nhật trạng thái tài khoản."
-                                  )
-                                }
-                              })
-                            }
-                          >
-                            {isActive ? <LockIcon /> : <LockOpenIcon />}
-                            <span className="hidden lg:inline">
-                              {isActive ? "Khoá" : "Mở khoá"}
+                                  if (state.success && state.conversationSlug) {
+                                    router.push(
+                                      `/chats/${state.conversationSlug}`
+                                    )
+                                  } else {
+                                    toast.error(state.message)
+                                  }
+                                })
+                              }
+                            >
+                              <MessageCircleIcon />
+                              <span className="hidden lg:inline">Nhắn tin</span>
+                            </Button>
+                          ) : null}
+                          {user.role !== "administrator" ? (
+                            <Button
+                              aria-label={
+                                isActive
+                                  ? `Khoá ${user.full_name}`
+                                  : `Mở khoá ${user.full_name}`
+                              }
+                              disabled={pending}
+                              size="sm"
+                              variant={isActive ? "destructive" : "outline"}
+                              onClick={() =>
+                                startTransition(async () => {
+                                  try {
+                                    await toggleUserLockAction(
+                                      user.id,
+                                      isActive ? "lock" : "unlock",
+                                      isActive
+                                        ? "Khoá bởi quản trị viên"
+                                        : undefined
+                                    )
+                                    toast.success(
+                                      "Đã cập nhật trạng thái tài khoản."
+                                    )
+                                  } catch {
+                                    toast.error(
+                                      "Không thể cập nhật trạng thái tài khoản."
+                                    )
+                                  }
+                                })
+                              }
+                            >
+                              {isActive ? <LockIcon /> : <LockOpenIcon />}
+                              <span className="hidden lg:inline">
+                                {isActive ? "Khoá" : "Mở khoá"}
+                              </span>
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              Được bảo vệ
                             </span>
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Được bảo vệ
-                          </span>
-                        )}
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )

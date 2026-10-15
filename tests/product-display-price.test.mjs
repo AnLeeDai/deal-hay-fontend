@@ -89,3 +89,27 @@ test("a zero-priced variant does not fall back to the base price", () => {
 test("older API responses and simple products retain their base price", () => {
   assert.ok(renderCard({}).includes(formatCurrency(50000)))
 })
+
+test("an available ad offer shows the regular price, sale price, percentage, and condition", () => {
+  const rendered = renderCard({
+    display_price: 80000,
+    display_original_price: 100000,
+    advertisement_available: true,
+  })
+  assert.ok(rendered.includes(formatCurrency(100000)))
+  assert.ok(rendered.includes(formatCurrency(80000)))
+  assert.ok(rendered.includes("20"))
+  assert.ok(rendered.includes("Giá sau khi xem quảng cáo"))
+  assert.ok(rendered.includes("line-through"))
+})
+
+test("an unavailable advertisement offers only the regular purchase price", () => {
+  const rendered = renderCard({
+    display_price: 80000,
+    display_original_price: 100000,
+    advertisement_available: false,
+  })
+  assert.ok(rendered.includes(formatCurrency(100000)))
+  assert.ok(!rendered.includes(formatCurrency(80000)))
+  assert.ok(!rendered.includes("Giá sau khi xem quảng cáo"))
+})

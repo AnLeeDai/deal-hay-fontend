@@ -10,7 +10,7 @@ export default async function AdminUsersPage({
 }: {
   searchParams: Promise<{ page?: string }>
 }) {
-  await requireAdmin()
+  const user = await requireAdmin()
   const { page } = await searchParams
-  return <AdminUsersPageContainer page={page} />
+  return <AdminUsersPageContainer currentUserId={user.id} page={page} />
 }

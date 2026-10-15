@@ -33,4 +33,6 @@ export type ProductResponse = {
   relatedProducts: PublicProductSummary[]
   reviews: ProductReview[]
   reviewSummary: ProductReviewSummary
+  canReview: boolean
+  viewerReview: ProductReview | null
 }

@@ -8,6 +8,7 @@ import { z } from "zod"
 import { KeyRoundIcon, StoreIcon, UserRoundIcon } from "lucide-react"
 
 import { FormSubmitButton } from "@/components/form-submit-button"
+import { AddressFields } from "@/components/address-fields"
 import { PageHeader } from "@/components/layout/page-header"
 import { SelectedFilePreview } from "@/components/selected-file-preview"
 import {
@@ -133,32 +134,7 @@ function ProfileInfoForm({ user }: { user: User }) {
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="province"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tỉnh / thành</FormLabel>
-                <FormControl>
-                  <Input type="text" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="ward"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Phường / xã</FormLabel>
-                <FormControl>
-                  <Input type="text" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <AddressFields form={form} provinceName="province" wardName="ward" />
           <FormField
             control={form.control}
             name="address_detail"

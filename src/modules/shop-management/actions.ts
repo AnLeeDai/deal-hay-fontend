@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { ApiError } from "@/api/client"
+import { apiFetch } from "@/api/client"
 import { replyToReview } from "@/api/catalog/mutations"
 import {
   createCoupon,
@@ -36,6 +37,38 @@ function toState(error: unknown, fallback: string): ActionState {
   return { success: false, message: fallback }
 }
 
+export async function updateProductPricingAction(
+  productId: string,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    const response = await apiFetch<{ message: string }>({
+      method: "PATCH",
+      path: `/private/shop/products/${encodeURIComponent(productId)}/pricing`,
+      body: {
+        price: Number(formData.get("price")),
+        old_price: formData.get("old_price")
+          ? Number(formData.get("old_price"))
+          : null,
+        video_url: formData.get("video_url") || null,
+        advertisement_video_url:
+          formData.get("advertisement_video_url") || null,
+        advertisement_duration_seconds: formData.get(
+          "advertisement_duration_seconds"
+        )
+          ? Number(formData.get("advertisement_duration_seconds"))
+          : null,
+      },
+    })
+    revalidatePath("/shop-manage")
+    revalidatePath("/")
+    revalidatePath("/shops", "layout")
+    return { success: true, message: response.message }
+  } catch (error) {
+    return toState(error, "Không thể cập nhật giá sản phẩm.")
+  }
+}
+
 export async function createProductAction(
   formData: FormData
 ): Promise<ActionState> {
@@ -59,6 +92,16 @@ export async function createProductAction(
     name: formData.get("name"),
     category: formData.get("category"),
     price: Number(formData.get("price")),
+    old_price: formData.get("old_price")
+      ? Number(formData.get("old_price"))
+      : "",
+    video_url: formData.get("video_url") || "",
+    advertisement_video_url: formData.get("advertisement_video_url") || "",
+    advertisement_duration_seconds: formData.get(
+      "advertisement_duration_seconds"
+    )
+      ? Number(formData.get("advertisement_duration_seconds"))
+      : "",
     stock: Number(formData.get("stock")),
     description: formData.get("description"),
     label: formData.get("label"),
@@ -88,6 +131,16 @@ export async function createProductAction(
   payload.set("name", parsed.data.name)
   payload.set("category", parsed.data.category)
   payload.set("price", String(parsed.data.price))
+  if (typeof parsed.data.old_price === "number")
+    payload.set("old_price", String(parsed.data.old_price))
+  if (parsed.data.video_url) payload.set("video_url", parsed.data.video_url)
+  if (parsed.data.advertisement_video_url)
+    payload.set("advertisement_video_url", parsed.data.advertisement_video_url)
+  if (typeof parsed.data.advertisement_duration_seconds === "number")
+    payload.set(
+      "advertisement_duration_seconds",
+      String(parsed.data.advertisement_duration_seconds)
+    )
   payload.set("stock", String(parsed.data.has_variants ? 0 : parsed.data.stock))
   if (parsed.data.description && parsed.data.description !== "") {
     payload.set("description", parsed.data.description)

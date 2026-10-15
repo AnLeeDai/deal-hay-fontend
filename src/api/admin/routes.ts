@@ -1,6 +1,7 @@
 export const adminRoutes = {
   users: "/admin/users",
   toggleUserLock: (userId: string) => `/admin/users/${userId}/toggle-lock`,
+  startChat: (userId: string) => `/admin/users/${userId}/chat`,
   shops: "/admin/shops",
   shop: (shopId: string) => `/admin/shops/${shopId}`,
   shopProduct: (shopId: string, productId: string) =>

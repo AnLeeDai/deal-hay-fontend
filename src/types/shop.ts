@@ -25,6 +25,10 @@ export type ShopProduct = {
   category: string
   description: string | null
   price: number
+  old_price?: number | null
+  video_url?: string | null
+  advertisement_video_url?: string | null
+  advertisement_duration_seconds?: number | null
   stock: number
   has_variants: boolean
   label: string | null

@@ -51,9 +51,39 @@ export function ProductCard({
           <p className="truncate text-xs text-muted-foreground">
             {product.category}
           </p>
-          <p className="pt-1 text-base font-semibold text-primary sm:text-lg">
-            {formatCurrency(product.display_price ?? product.price)}
-          </p>
+          {product.advertisement_available &&
+          (product.display_original_price ?? 0) >
+            (product.display_price ?? product.price) ? (
+            <div className="space-y-1 pt-1">
+              <p className="text-xs text-muted-foreground line-through">
+                {formatCurrency(product.display_original_price!)}
+              </p>
+              <p className="text-base font-semibold text-primary sm:text-lg">
+                {formatCurrency(product.display_price ?? product.price)}{" "}
+                <Badge variant="secondary">
+                  -
+                  {Math.round(
+                    (1 -
+                      (product.display_price ?? product.price) /
+                        product.display_original_price!) *
+                      100
+                  )}
+                  %
+                </Badge>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Giá sau khi xem quảng cáo
+              </p>
+            </div>
+          ) : (
+            <p className="pt-1 text-base font-semibold text-primary sm:text-lg">
+              {formatCurrency(
+                product.display_original_price ??
+                  product.display_price ??
+                  product.price
+              )}
+            </p>
+          )}
         </CardContent>
         <CardFooter className="justify-between gap-2 border-t px-3 py-2.5 text-xs text-muted-foreground sm:px-4">
           <span className="flex min-w-0 items-center gap-1.5">

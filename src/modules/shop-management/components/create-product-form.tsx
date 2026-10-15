@@ -55,6 +55,10 @@ function initialProductValues(categories: ShopCategory[]): CreateProductValues {
     name: "",
     category: categories[0]?.name ?? "",
     price: 1000,
+    old_price: "",
+    video_url: "",
+    advertisement_video_url: "",
+    advertisement_duration_seconds: "",
     stock: 0,
     label: "",
     description: "",
@@ -180,6 +184,16 @@ export function CreateProductForm({
     formData.set("name", values.name)
     formData.set("category", values.category)
     formData.set("price", String(values.price))
+    formData.set("old_price", String(values.old_price ?? ""))
+    formData.set("video_url", values.video_url ?? "")
+    formData.set(
+      "advertisement_video_url",
+      values.advertisement_video_url ?? ""
+    )
+    formData.set(
+      "advertisement_duration_seconds",
+      String(values.advertisement_duration_seconds ?? "")
+    )
     formData.set("stock", String(values.stock))
     formData.set("label", values.label ?? "")
     formData.set("description", values.description ?? "")
@@ -283,7 +297,9 @@ export function CreateProductForm({
               name="price"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Giá bán</FormLabel>
+                  <FormLabel>
+                    Giá ưu đãi sau khi xem quảng cáo / Giá bán
+                  </FormLabel>
                   <FormControl>
                     <Input
                       min={1000}
@@ -293,6 +309,90 @@ export function CreateProductForm({
                       value={Number.isFinite(field.value) ? field.value : ""}
                       onChange={(event) =>
                         field.onChange(numericValue(event.target.value))
+                      }
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="old_price"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Giá gốc (khi có ưu đãi quảng cáo)</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      min={1000}
+                      type="number"
+                      placeholder="Để trống nếu không có ưu đãi"
+                      onChange={(event) =>
+                        field.onChange(optionalNumericValue(event.target.value))
+                      }
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Khách đặt ngay trả giá gốc. Biến thể áp dụng cùng tỷ lệ giảm
+                    giá.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="video_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>URL video sản phẩm (HTTPS)</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="url"
+                      placeholder="https://.../san-pham.mp4"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="advertisement_video_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>URL video quảng cáo nhận ưu đãi (HTTPS)</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="url"
+                      placeholder="https://.../quang-cao.mp4"
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Đường dẫn trực tiếp đến video, khách cần xem hết để mở giá
+                    ưu đãi.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="advertisement_duration_seconds"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Thời lượng video quảng cáo (giây)</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="number"
+                      min={5}
+                      max={300}
+                      onChange={(event) =>
+                        field.onChange(optionalNumericValue(event.target.value))
                       }
                     />
                   </FormControl>
