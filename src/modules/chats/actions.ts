@@ -89,7 +89,7 @@ export async function sendMessageAction(
   formData: FormData
 ): Promise<SendMessageActionState> {
   const parsed = sendMessageSchema.safeParse({
-    body: formData.get("body"),
+    body: formData.get("body") ?? "",
     attachment:
       formData.get("attachment") instanceof File &&
       (formData.get("attachment") as File).size > 0

@@ -10,7 +10,8 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "test:realtime": "node tests/realtime-chat-state.test.mjs"
+    "test:realtime": "node tests/realtime-chat-state.test.mjs",
+    "test:chat-image": "node tests/chat-image-send.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
