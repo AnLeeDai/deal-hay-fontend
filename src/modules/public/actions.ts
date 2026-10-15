@@ -13,6 +13,7 @@ import {
   upsertReview,
 } from "@/api/catalog/mutations"
 import type { ActionState } from "@/types/forms"
+import type { ProductDiscountCode } from "@/types/discount-code"
 import { reviewProductSchema } from "@/modules/public/schemas/reviews"
 import {
   checkoutSchema,
@@ -22,6 +23,8 @@ import {
 type OrderPayload = CheckoutValues & {
   variant_id?: string
   advertisement_view_id?: string
+  discount_code?: string
+  discount_codes?: string[]
 }
 
 export async function orderProductAction(
@@ -29,7 +32,15 @@ export async function orderProductAction(
   productSlug: string,
   values: OrderPayload,
   idempotencyKey: string
-): Promise<ActionState & { data?: { order_number: string; total: number } }> {
+): Promise<
+  ActionState & {
+    data?: {
+      order_number: string
+      total: number
+      redeemed_discount_codes?: string[]
+    }
+  }
+> {
   const parsed = checkoutSchema.safeParse(values)
   if (!parsed.success)
     return {
@@ -40,7 +51,11 @@ export async function orderProductAction(
   try {
     const response = await apiFetch<{
       message: string
-      order: { order_number: string; total: number }
+      order: {
+        order_number: string
+        total: number
+        redeemed_discount_codes?: string[]
+      }
     }>({
       method: "POST",
       path: `/shops/${encodeURIComponent(shopUserCode)}/products/${encodeURIComponent(productSlug)}/orders`,
@@ -49,9 +64,12 @@ export async function orderProductAction(
         ...parsed.data,
         variant_id: values.variant_id,
         advertisement_view_id: values.advertisement_view_id,
+        discount_code: values.discount_code,
+        discount_codes: values.discount_codes,
       },
     })
     revalidatePath(`/shops/${shopUserCode}/products/${productSlug}`)
+    revalidatePath("/discount-codes")
     return { success: true, message: response.message, data: response.order }
   } catch (error) {
     return normalizeError(error)
@@ -63,19 +81,25 @@ export async function startProductAdvertisementAction(
   productSlug: string
 ): Promise<
   ActionState & {
-    data?: { id: string; video_url: string; duration_seconds: number }
+    data?: {
+      id: string
+      provider: string
+      ad_type: string
+      presentation: Record<string, unknown>
+    }
   }
 > {
   try {
     const data = await apiFetch<{
       id: string
-      video_url: string
-      duration_seconds: number
+      provider: string
+      ad_type: string
+      presentation: Record<string, unknown>
     }>({
       method: "POST",
       path: `/shops/${encodeURIComponent(shopUserCode)}/products/${encodeURIComponent(productSlug)}/advertisement`,
     })
-    return { success: true, message: "Xem hết video để nhận ưu đãi.", data }
+    return { success: true, message: "Đã tạo lượt quảng cáo.", data }
   } catch (error) {
     return normalizeError(error)
   }
@@ -85,13 +109,17 @@ export async function completeProductAdvertisementAction(
   shopUserCode: string,
   productSlug: string,
   viewId: string
-): Promise<ActionState> {
+): Promise<ActionState & { data?: ProductDiscountCode }> {
   try {
-    const data = await apiFetch<{ message: string }>({
+    const data = await apiFetch<{
+      message: string
+      discount_code: ProductDiscountCode
+    }>({
       method: "POST",
       path: `/shops/${encodeURIComponent(shopUserCode)}/products/${encodeURIComponent(productSlug)}/advertisement/${encodeURIComponent(viewId)}/complete`,
     })
-    return { success: true, message: data.message }
+    revalidatePath("/discount-codes")
+    return { success: true, message: data.message, data: data.discount_code }
   } catch (error) {
     return normalizeError(error)
   }
@@ -99,7 +127,14 @@ export async function completeProductAdvertisementAction(
 
 function normalizeError(error: unknown): ActionState {
   if (error instanceof ApiError) {
-    return { success: false, message: error.message, errors: error.errors }
+    return {
+      success: false,
+      message:
+        error.status === 401
+          ? "Vui lòng đăng nhập để tiếp tục."
+          : error.message,
+      errors: error.errors,
+    }
   }
   return { success: false, message: "Không thể xử lý yêu cầu." }
 }

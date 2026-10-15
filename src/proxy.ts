@@ -7,6 +7,7 @@ import { AUTH_ROLE_COOKIE, AUTH_TOKEN_COOKIE } from "@/lib/cookies"
 const protectedPrefixes = [
   "/sell",
   "/profile",
+  "/discount-codes",
   "/notifications",
   "/chats",
   "/shop-manage",
@@ -66,6 +67,7 @@ export const config = {
     "/forgot-password/:path*",
     "/reset-password/:path*",
     "/profile/:path*",
+    "/discount-codes/:path*",
     "/notifications/:path*",
     "/chats/:path*",
     "/shop-manage/:path*",

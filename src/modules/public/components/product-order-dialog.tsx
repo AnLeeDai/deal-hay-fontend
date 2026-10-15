@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -10,6 +10,7 @@ import { toast } from "sonner"
 
 import { AddressFields } from "@/components/address-fields"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -29,7 +30,6 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ProductGallery } from "@/modules/public/components/product-gallery"
 import {
-  completeProductAdvertisementAction,
   orderProductAction,
   startProductAdvertisementAction,
 } from "@/modules/public/actions"
@@ -38,7 +38,12 @@ import {
   type CheckoutValues,
 } from "@/modules/public/schemas/checkout"
 import { applyServerErrors } from "@/lib/form-utils"
-import { formatCurrency } from "@/lib/format"
+import { formatCurrency, formatDate } from "@/lib/format"
+import { getAuthPageHref } from "@/lib/auth-redirect"
+import { loadDiscountCodesAction } from "@/modules/discount-codes/actions"
+import { summarizeDiscountCodes } from "@/modules/discount-codes/lib/discount-codes"
+import { formatDiscountCodeValue } from "@/modules/discount-codes/lib/format-discount-code"
+import type { ProductDiscountCode } from "@/types/discount-code"
 import type {
   PublicProduct,
   PublicProductVariant,
@@ -51,39 +56,37 @@ export function ProductOrderDialog({
   shop,
   product,
   variant,
-  salePrice,
   regularPrice,
   stock,
   onMessage,
   messagePending,
+  initialDiscountCode,
 }: {
   open: boolean
   onOpenChange: (value: boolean) => void
   shop: PublicShop
   product: PublicProduct
   variant?: PublicProductVariant
-  salePrice: number
   regularPrice: number
   stock: number
   onMessage: () => void
   messagePending: boolean
+  initialDiscountCode?: string
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [checkout, setCheckout] = useState(false)
-  const [ad, setAd] = useState<{
-    id: string
-    video_url: string
-    duration_seconds: number
-  } | null>(null)
-  const [rewardId, setRewardId] = useState<string | null>(null)
-  const [adError, setAdError] = useState(false)
-  const [adEnded, setAdEnded] = useState(false)
+  const [checkout, setCheckout] = useState(Boolean(initialDiscountCode))
+  const [selectedCodes, setSelectedCodes] = useState<string[]>(
+    initialDiscountCode ? [initialDiscountCode] : []
+  )
+  const [savedCodes, setSavedCodes] = useState<ProductDiscountCode[]>([])
+  const [codesError, setCodesError] = useState<string | null>(null)
+  const [codesPending, startCodesTransition] = useTransition()
+  const [reloadCodes, setReloadCodes] = useState(0)
+  const [adMessage, setAdMessage] = useState<string | null>(null)
   const [idempotencyKey, setIdempotencyKey] = useState(() =>
     crypto.randomUUID()
   )
-  const watchedThrough = useRef(0)
-  const videoRef = useRef<HTMLVideoElement>(null)
   const form = useForm<CheckoutValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
@@ -96,56 +99,73 @@ export function ProductOrderDialog({
       note: "",
     },
   })
-  const quantity = useWatch({ control: form.control, name: "quantity" }) || 1
+  const quantity = useWatch({ control: form.control, name: "quantity" }) ?? 1
+  const validQuantity =
+    Number.isInteger(quantity) &&
+    quantity >= 1 &&
+    quantity <= Math.min(stock, 9999)
+  const discountCodes = savedCodes.filter(
+    (code) => code.is_available && code.product.id === product.id
+  )
+  const selectedDiscountCodes = selectedCodes.flatMap((value) => {
+    const code = discountCodes.find((item) => item.code === value)
+    return code ? [code] : []
+  })
+  const unknownSelectedCodes = selectedCodes.filter(
+    (value) => !discountCodes.some((code) => code.code === value)
+  )
+  const unconfirmedCodes =
+    selectedCodes.length > 0 &&
+    (codesPending || Boolean(codesError) || unknownSelectedCodes.length > 0)
+  const summary = summarizeDiscountCodes(
+    regularPrice,
+    quantity,
+    selectedDiscountCodes
+  )
 
-  const viewAdvertisement = () => {
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    startCodesTransition(async () => {
+      setCodesError(null)
+      const state = await loadDiscountCodesAction(product.id)
+      if (!active) return
+      setCodesError(state.success ? null : state.message)
+      setSavedCodes(state.success && state.data ? state.data : [])
+    })
+    return () => {
+      active = false
+    }
+  }, [open, product.id, reloadCodes])
+
+  const viewAdvertisement = () =>
     startTransition(async () => {
       const state = await startProductAdvertisementAction(
         shop.code,
         product.slug
       )
-      if (!state.success || !state.data) {
-        toast.error(state.message)
-        return
-      }
-      watchedThrough.current = 0
-      setAdError(false)
-      setAdEnded(false)
-      setRewardId(null)
-      setCheckout(false)
-      setAd(state.data)
+      const message = state.success
+        ? "Quảng cáo nhận ưu đãi đang tạm thời chưa sẵn sàng. Vui lòng thử lại sau."
+        : state.message
+      setAdMessage(message)
+      toast.error(message)
     })
-  }
-
-  const finishAdvertisement = () => {
-    if (!ad || adError) return
-    startTransition(async () => {
-      const state = await completeProductAdvertisementAction(
-        shop.code,
-        product.slug,
-        ad.id
-      )
-      if (!state.success) {
-        setAdEnded(true)
-        toast.error(state.message)
-        return
-      }
-      setRewardId(ad.id)
-      setAd(null)
-      setCheckout(true)
-      toast.success(state.message)
-    })
-  }
 
   const submit = form.handleSubmit((values) =>
     startTransition(async () => {
+      if (unconfirmedCodes) {
+        toast.error(
+          "Chưa xác nhận được tất cả mã đã chọn. Vui lòng tải lại mã hoặc bỏ mã không hợp lệ trước khi đặt hàng."
+        )
+        return
+      }
       const state = await orderProductAction(
         shop.code,
         product.slug,
         {
           ...values,
           variant_id: variant?.id,
-          advertisement_view_id: rewardId ?? undefined,
+          discount_codes: selectedCodes.length ? selectedCodes : undefined,
         },
         idempotencyKey
       )
@@ -153,20 +173,28 @@ export function ProductOrderDialog({
         const hasErrors = applyServerErrors(state.errors, form.setError)
         if (
           !hasErrors ||
-          state.errors?.advertisement_view_id ||
+          state.errors?.discount_codes ||
+          state.errors?.discount_code ||
           state.errors?.variant_id
-        )
+        ) {
           toast.error(
-            state.errors?.advertisement_view_id?.[0] ||
+            state.errors?.discount_codes?.[0] ||
+              state.errors?.discount_code?.[0] ||
               state.errors?.variant_id?.[0] ||
               state.message
           )
+        }
         return
       }
       toast.success(
         `${state.message} Mã đơn: ${state.data.order_number}. Tổng: ${formatCurrency(state.data.total)}`
       )
-      setRewardId(null)
+      const consumed = new Set(
+        state.data.redeemed_discount_codes ??
+          summary.appliedCodes.map((code) => code.code)
+      )
+      setSavedCodes((codes) => codes.filter((code) => !consumed.has(code.code)))
+      setSelectedCodes([])
       setCheckout(false)
       form.reset()
       setIdempotencyKey(crypto.randomUUID())
@@ -179,88 +207,17 @@ export function ProductOrderDialog({
     <Dialog
       open={open}
       onOpenChange={(value) => {
-        if (!pending) {
-          onOpenChange(value)
-          if (!value) setAd(null)
-        }
+        if (!pending) onOpenChange(value)
       }}
     >
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl">
         <div className="grid gap-6 md:grid-cols-2">
-          <div>
-            {ad ? (
-              <div className="space-y-3">
-                <p className="font-medium">Xem hết video để nhận ưu đãi</p>
-                <video
-                  key={ad.id}
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  controls
-                  controlsList="nodownload noplaybackrate"
-                  disablePictureInPicture
-                  className="aspect-video w-full rounded-lg bg-black"
-                  src={ad.video_url}
-                  onRateChange={() => {
-                    if (videoRef.current) videoRef.current.playbackRate = 1
-                  }}
-                  onSeeking={(event) => {
-                    if (
-                      event.currentTarget.currentTime >
-                      watchedThrough.current + 1
-                    )
-                      event.currentTarget.currentTime = watchedThrough.current
-                  }}
-                  onTimeUpdate={(event) => {
-                    if (
-                      !event.currentTarget.seeking &&
-                      !event.currentTarget.paused
-                    )
-                      watchedThrough.current = Math.max(
-                        watchedThrough.current,
-                        event.currentTarget.currentTime
-                      )
-                  }}
-                  onEnded={finishAdvertisement}
-                  onError={() => {
-                    setAdError(true)
-                    toast.error(
-                      "Không tải được quảng cáo. Bạn vẫn có thể đặt hàng theo giá gốc."
-                    )
-                  }}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Ưu đãi được mở khi video kết thúc và hệ thống xác nhận đủ thời
-                  gian xem.
-                </p>
-                {adEnded ? (
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Video đã kết thúc. Hãy xác nhận lại sau khi đủ thời lượng
-                      quảng cáo do cửa hàng cung cấp.
-                    </p>
-                    <Button disabled={pending} onClick={finishAdvertisement}>
-                      Xác nhận đã xem hết
-                    </Button>
-                  </div>
-                ) : null}
-                <Button
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() => setAd(null)}
-                >
-                  Quay lại đặt hàng
-                </Button>
-              </div>
-            ) : (
-              <ProductGallery
-                name={product.name}
-                imageUrl={product.image_url}
-                images={product.images}
-                videoUrl={product.video_url}
-              />
-            )}
-          </div>
+          <ProductGallery
+            name={product.name}
+            imageUrl={product.image_url}
+            images={product.images}
+            videoUrl={product.video_url}
+          />
           <div className="space-y-4">
             <DialogHeader>
               <DialogTitle className="pr-6 text-xl">{product.name}</DialogTitle>
@@ -284,23 +241,13 @@ export function ProductOrderDialog({
                   variant.sku}
               </p>
             ) : null}
-            {regularPrice > salePrice && product.advertisement_available ? (
-              <div>
-                <p className="text-sm text-muted-foreground line-through">
-                  {formatCurrency(regularPrice)}
-                </p>
-                <p className="text-2xl font-semibold text-primary">
-                  {formatCurrency(salePrice)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Giá sau khi xem hết quảng cáo
-                </p>
-              </div>
-            ) : (
-              <p className="text-2xl font-semibold text-primary">
-                {formatCurrency(regularPrice)}
-              </p>
-            )}
+            <p className="text-2xl font-semibold text-primary">
+              {formatCurrency(regularPrice)}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Tích lũy mã từ nhiều lượt xem quảng cáo để giảm tiền hàng, tối đa
+              toàn bộ giá trị sản phẩm.
+            </p>
             <div className="space-y-3">
               <Button
                 className="w-full"
@@ -312,9 +259,9 @@ export function ProductOrderDialog({
               </Button>
               <Button
                 className="w-full"
-                disabled={pending || stock < 1 || Boolean(ad)}
+                disabled={pending || stock < 1}
                 onClick={() => {
-                  setRewardId(null)
+                  setSelectedCodes([])
                   setCheckout(true)
                 }}
               >
@@ -322,31 +269,175 @@ export function ProductOrderDialog({
               </Button>
               <div className="space-y-2">
                 <p className="text-sm font-medium">
-                  Xem quảng cáo để nhận ngay ưu đãi
+                  Xem quảng cáo để nhận mã giảm giá
                 </p>
                 <Button
                   className="w-full"
                   variant="secondary"
-                  disabled={
-                    pending ||
-                    !product.advertisement_available ||
-                    stock < 1 ||
-                    Boolean(ad)
-                  }
+                  disabled={pending || stock < 1}
                   onClick={viewAdvertisement}
                 >
                   <PlayIcon /> Xem quảng cáo
                 </Button>
-              </div>
-              {!product.advertisement_available ? (
                 <p className="text-xs text-muted-foreground">
-                  Sản phẩm hiện chưa có quảng cáo nhận ưu đãi.
+                  Quảng cáo do hệ thống tự động cung cấp. Mã được cấp sau khi
+                  lượt xem được xác nhận; có thể lưu và cộng dồn để mua với giá
+                  0đ.
                 </p>
-              ) : null}
+                {adMessage ? (
+                  <p className="text-sm text-muted-foreground" role="status">
+                    {adMessage}
+                  </p>
+                ) : null}
+              </div>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => setCheckout(true)}
+                disabled={pending || stock < 1}
+              >
+                Dùng mã đã tích lũy
+              </Button>
             </div>
             {checkout ? (
               <Form {...form}>
                 <form onSubmit={submit} className="space-y-4 border-t pt-4">
+                  <fieldset
+                    className="space-y-3"
+                    disabled={pending || codesPending}
+                  >
+                    <legend className="mb-2 font-medium">
+                      Mã giảm giá của tôi
+                    </legend>
+                    {discountCodes.length > 0 ? (
+                      <>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            type="button"
+                            onClick={() =>
+                              setSelectedCodes(
+                                discountCodes
+                                  .slice(0, 100)
+                                  .map((code) => code.code)
+                              )
+                            }
+                          >
+                            {discountCodes.length > 100
+                              ? "Chọn 100 mã đầu"
+                              : "Chọn tất cả"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            type="button"
+                            onClick={() => setSelectedCodes([])}
+                          >
+                            Không dùng mã
+                          </Button>
+                        </div>
+                        <div className="max-h-52 space-y-2 overflow-y-auto rounded-lg border p-3">
+                          {discountCodes.map((code) => (
+                            <label
+                              key={code.id}
+                              className="flex items-start gap-2 text-sm"
+                            >
+                              <Checkbox
+                                checked={selectedCodes.includes(code.code)}
+                                onCheckedChange={(checked) => {
+                                  setSelectedCodes((values) =>
+                                    checked
+                                      ? values.length < 100 &&
+                                        !values.includes(code.code)
+                                        ? [...values, code.code]
+                                        : values
+                                      : values.filter(
+                                          (value) => value !== code.code
+                                        )
+                                  )
+                                }}
+                              />
+                              <span>
+                                <span className="font-medium">
+                                  Giảm {formatDiscountCodeValue(code)}
+                                </span>
+                                <br />
+                                <span className="text-xs break-all text-muted-foreground">
+                                  {code.code} · Hết hạn{" "}
+                                  {formatDate(code.expires_at)}
+                                </span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+                  </fieldset>
+                  {codesPending ? (
+                    <p className="text-xs text-muted-foreground">
+                      Đang tải mã giảm giá...
+                    </p>
+                  ) : codesError ? (
+                    <div className="space-y-2 text-xs text-destructive">
+                      <p>{codesError}</p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        onClick={() => setReloadCodes((value) => value + 1)}
+                      >
+                        Tải lại mã
+                      </Button>
+                      {codesError.includes("đăng nhập") ? (
+                        <Link
+                          className="ml-2 underline"
+                          href={getAuthPageHref(
+                            "/sign-in",
+                            `/shops/${shop.code}/products/${product.slug}${initialDiscountCode ? `?discount_code=${encodeURIComponent(initialDiscountCode)}` : ""}`
+                          )}
+                        >
+                          Đăng nhập
+                        </Link>
+                      ) : null}
+                    </div>
+                  ) : discountCodes.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Bạn chưa có mã còn hiệu lực cho sản phẩm này.
+                    </p>
+                  ) : null}
+                  {unknownSelectedCodes.length > 0 && !codesPending ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-destructive">
+                        Có mã đã chọn chưa được xác nhận hoặc không còn hiệu
+                        lực.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        onClick={() =>
+                          setSelectedCodes((values) =>
+                            values.filter((value) =>
+                              discountCodes.some((code) => code.code === value)
+                            )
+                          )
+                        }
+                      >
+                        Bỏ mã không hợp lệ
+                      </Button>
+                    </div>
+                  ) : null}
+                  <Link
+                    href="/discount-codes"
+                    className="text-sm text-primary underline"
+                  >
+                    Mở kho mã giảm giá
+                  </Link>
+                  <p className="text-xs text-muted-foreground">
+                    Có thể dùng nhiều mã. Tổng giảm tối đa bằng tiền hàng; mã
+                    chưa cần dùng khi tiền hàng đã về 0đ sẽ được giữ lại.
+                  </p>
                   <p className="font-medium">Thông tin giao hàng</p>
                   {(
                     [
@@ -427,19 +518,50 @@ export function ProductOrderDialog({
                       </FormItem>
                     )}
                   />
-                  <p aria-live="polite" className="font-semibold">
-                    Tổng thanh toán:{" "}
-                    {formatCurrency(
-                      (rewardId ? salePrice : regularPrice) * quantity
+                  <div
+                    className="space-y-1 rounded-lg bg-muted p-3"
+                    aria-live="polite"
+                  >
+                    {!validQuantity ? (
+                      <p className="text-sm text-destructive">
+                        Vui lòng nhập số lượng hợp lệ trong giới hạn tồn kho.
+                      </p>
+                    ) : unconfirmedCodes ? (
+                      <p className="text-sm text-muted-foreground">
+                        Đang chờ xác nhận các mã đã chọn.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-sm">
+                          Tiền hàng: {formatCurrency(summary.subtotal)}
+                        </p>
+                        <p className="text-sm text-primary">
+                          Giảm từ mã tích lũy:{" "}
+                          {formatCurrency(summary.discount)}
+                        </p>
+                        <p className="font-semibold">
+                          Tổng thanh toán: {formatCurrency(summary.total)}
+                        </p>
+                        {summary.total === 0 && summary.discount > 0 ? (
+                          <p className="text-sm font-medium text-primary">
+                            Bạn đã tích lũy đủ mã để đặt đơn 0đ.
+                          </p>
+                        ) : null}
+                      </>
                     )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {rewardId
-                      ? "Đã mở ưu đãi sau khi xem quảng cáo, áp dụng cho một đơn hàng."
-                      : "Đặt ngay áp dụng giá gốc, chưa có ưu đãi quảng cáo."}
-                  </p>
-                  <Button type="submit" className="w-full" disabled={pending}>
-                    {pending ? "Đang xử lý..." : "Xác nhận đặt hàng"}
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={pending || !validQuantity || unconfirmedCodes}
+                  >
+                    {pending
+                      ? "Đang xử lý..."
+                      : validQuantity &&
+                          !unconfirmedCodes &&
+                          summary.total === 0
+                        ? "Xác nhận đặt hàng 0đ"
+                        : "Xác nhận đặt hàng"}
                   </Button>
                 </form>
               </Form>

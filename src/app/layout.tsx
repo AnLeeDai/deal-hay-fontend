@@ -5,9 +5,11 @@ import "@/app/globals.css"
 import { SiteFooter } from "@/components/layout/site-footer"
 import { SiteHeader } from "@/components/layout/site-header"
 import { RealtimeRoot } from "@/components/realtime-root"
+import { StorefrontAdsense } from "@/components/storefront-adsense"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { ADSENSE_CLIENT_ID } from "@/config/adsense"
 import { cn } from "@/lib/utils"
 
 const inter = Inter({
@@ -23,6 +25,9 @@ export const metadata: Metadata = {
   },
   description:
     "Khám phá sản phẩm, kết nối trực tiếp với cửa hàng uy tín và săn những deal hay mỗi ngày.",
+  other: {
+    "google-adsense-account": ADSENSE_CLIENT_ID,
+  },
 }
 
 export default function RootLayout({
@@ -35,6 +40,7 @@ export default function RootLayout({
       className={cn("antialiased", inter.variable, fontMono.variable)}
     >
       <body className="min-h-svh bg-background text-foreground">
+        <StorefrontAdsense />
         <ThemeProvider>
           <TooltipProvider>
             <RealtimeRoot>

@@ -14,8 +14,8 @@ export default function PrivacyPage() {
         <p>
           Khi sử dụng Deal Hay, bạn có thể cung cấp email, họ tên, số điện
           thoại, địa chỉ, ảnh đại diện, thông tin cửa hàng, đơn hàng, đánh giá,
-          tin nhắn và tệp đính kèm. Hệ thống sử dụng cookie đăng nhập để duy trì
-          phiên truy cập.
+          tin nhắn, mã giảm giá đã lưu và tệp đính kèm. Hệ thống sử dụng cookie
+          đăng nhập để duy trì phiên truy cập.
         </p>
       </section>
       <section className="space-y-2">
@@ -45,6 +45,32 @@ export default function PrivacyPage() {
           Bạn có thể cập nhật thông tin cá nhân và đổi mật khẩu trong hồ sơ. Để
           yêu cầu hỗ trợ về dữ liệu tài khoản, hãy gửi yêu cầu qua chức năng hỗ
           trợ trong hệ thống, nêu rõ tài khoản và nội dung cần xử lý.
+        </p>
+      </section>
+      <section className="space-y-2">
+        <h2 className="text-xl font-semibold">5. Quảng cáo</h2>
+        <p>
+          Các trang mua sắm có thể hiển thị quảng cáo của Google AdSense. Google
+          và các đối tác có thể sử dụng cookie và thông tin trình duyệt để phân
+          phối, cá nhân hóa và đo lường quảng cáo. Xem thêm tại{" "}
+          <a
+            className="text-primary underline"
+            href="https://policies.google.com/technologies/ads"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            cách Google sử dụng thông tin cho quảng cáo
+          </a>{" "}
+          và quản lý lựa chọn tại{" "}
+          <a
+            className="text-primary underline"
+            href="https://myadcenter.google.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Trung tâm quảng cáo của tôi
+          </a>
+          .
         </p>
       </section>
       <Link className="inline-block text-primary underline" href="/sign-up">

@@ -1,0 +1,161 @@
+import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
+import test from "node:test"
+import ts from "typescript"
+
+const moduleUrl = (source) =>
+  `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
+
+function transpileModule(path, imports = {}) {
+  const { outputText } = ts.transpileModule(
+    readFileSync(new URL(path, import.meta.url), "utf8"),
+    {
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+      },
+    }
+  )
+  return moduleUrl(
+    outputText.replace(/from (["'])([^"']+)\1/g, (_match, quote, specifier) => {
+      assert.ok(imports[specifier], `Unmocked import: ${specifier}`)
+      return `from ${quote}${imports[specifier]}${quote}`
+    })
+  )
+}
+
+const validationUrl = transpileModule("../src/lib/validation.ts", {
+  zod: import.meta.resolve("zod"),
+})
+const variantsUrl = transpileModule(
+  "../src/modules/shop-management/lib/product-variants.ts"
+)
+const schemaUrl = transpileModule(
+  "../src/modules/shop-management/schemas/shop-management.ts",
+  {
+    zod: import.meta.resolve("zod"),
+    "@/lib/validation": validationUrl,
+    "@/modules/shop-management/lib/product-variants": variantsUrl,
+  }
+)
+const { createProductSchema } = await import(schemaUrl)
+const apiUrl = moduleUrl(`
+  export class ApiError extends Error {}
+  export const state = { calls: [], revalidated: [] }
+  export async function apiFetch(options) {
+    state.calls.push(options)
+    return { message: "Đã lưu." }
+  }
+  export async function createProduct(body) {
+    state.calls.push({ body })
+    return { message: "Đã tạo." }
+  }
+  export function revalidatePath(path) { state.revalidated.push(path) }
+  export const replyToReview = () => {};
+  export const createCoupon = () => {}; export const deleteCoupon = () => {};
+  export const deleteProduct = () => {}; export const adjustInventory = () => {};
+  export const reorderCategories = () => {}; export const updateOrderStatus = () => {};
+  export const updateProductStatus = () => {};
+`)
+const actions = await import(
+  transpileModule("../src/modules/shop-management/actions.ts", {
+    "next/cache": apiUrl,
+    "@/api/client": apiUrl,
+    "@/api/catalog/mutations": apiUrl,
+    "@/api/profile/mutations": apiUrl,
+    "@/modules/shop-management/lib/product-variants": variantsUrl,
+    "@/modules/shop-management/schemas/shop-management": schemaUrl,
+  })
+)
+const { state } = await import(apiUrl)
+
+function productDraft(overrides = {}) {
+  return {
+    name: "Áo thun",
+    category: "Thời trang",
+    price: 80000,
+    old_price: 100000,
+    video_url: "",
+    stock: 10,
+    label: "",
+    description: "Sản phẩm mới",
+    image: new File(["image"], "product.png", { type: "image/png" }),
+    gallery_images: [],
+    has_variants: false,
+    options: [],
+    variants: [],
+    ...overrides,
+  }
+}
+
+function productFormData(overrides = {}) {
+  const draft = productDraft(overrides)
+  const form = new FormData()
+  for (const field of [
+    "name",
+    "category",
+    "price",
+    "old_price",
+    "video_url",
+    "stock",
+    "label",
+    "description",
+  ]) {
+    form.set(field, String(draft[field]))
+  }
+  form.set("image", draft.image)
+  form.set(
+    "catalog",
+    JSON.stringify({ has_variants: false, options: [], variants: [] })
+  )
+  return form
+}
+
+test.beforeEach(() => {
+  state.calls.length = 0
+  state.revalidated.length = 0
+})
+
+test("shops can configure a discount without adding an advertising video", () => {
+  const parsed = createProductSchema.safeParse(productDraft())
+  assert.equal(parsed.success, true)
+  assert.equal(parsed.data.old_price, 100000)
+  assert.equal(parsed.data.price, 80000)
+})
+
+test("discounts still require an original price above the sale price", () => {
+  const parsed = createProductSchema.safeParse(
+    productDraft({ old_price: 70000 })
+  )
+  assert.equal(parsed.success, false)
+  assert.ok(parsed.error.issues.some((issue) => issue.path[0] === "old_price"))
+})
+
+test("discounted product creation forwards product media and ignores manual ad fields", async () => {
+  const form = productFormData({ video_url: "https://example.com/product.mp4" })
+  form.set("advertisement_video_url", "https://example.com/manual-ad.mp4")
+  form.set("advertisement_duration_seconds", "30")
+  const result = await actions.createProductAction(form)
+  assert.equal(result.success, true)
+  assert.equal(state.calls.length, 1)
+  const payload = state.calls[0].body
+  assert.equal(payload.get("old_price"), "100000")
+  assert.equal(payload.get("price"), "80000")
+  assert.equal(payload.get("video_url"), "https://example.com/product.mp4")
+  assert.equal(payload.has("advertisement_video_url"), false)
+  assert.equal(payload.has("advertisement_duration_seconds"), false)
+})
+
+test("price updates keep product media separate from centrally supplied ads", async () => {
+  const form = productFormData({ video_url: "https://example.com/product.mp4" })
+  form.set("advertisement_video_url", "https://example.com/manual-ad.mp4")
+  form.set("advertisement_duration_seconds", "30")
+  const result = await actions.updateProductPricingAction("product-1", form)
+  assert.equal(result.success, true)
+  assert.equal(state.calls[0].method, "PATCH")
+  assert.deepEqual(state.calls[0].body, {
+    old_price: 100000,
+    price: 80000,
+    video_url: "https://example.com/product.mp4",
+  })
+})

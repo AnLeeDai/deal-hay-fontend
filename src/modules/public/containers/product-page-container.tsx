@@ -36,9 +36,11 @@ import { ProductInteractions } from "@/modules/public/components/product-interac
 export async function ProductPageContainer({
   shopUserCode,
   productSlug,
+  initialDiscountCode,
 }: {
   shopUserCode: string
   productSlug: string
+  initialDiscountCode?: string
 }) {
   let data
 
@@ -85,6 +87,7 @@ export async function ProductPageContainer({
           product={data.product}
           canReview={data.canReview}
           hasReview={Boolean(data.viewerReview)}
+          initialDiscountCode={initialDiscountCode}
         />
       </section>
 

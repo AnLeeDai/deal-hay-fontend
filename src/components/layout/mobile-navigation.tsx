@@ -9,6 +9,7 @@ import {
   MessageCircleIcon,
   ShieldCheckIcon,
   StoreIcon,
+  TicketPercentIcon,
   UserRoundIcon,
 } from "lucide-react"
 
@@ -103,6 +104,16 @@ export function MobileNavigation({ user }: { user: User | null }) {
               </Button>
             )
           })}
+          {user ? (
+            <Button
+              className="justify-start"
+              nativeButton={false}
+              render={<Link href="/discount-codes" />}
+              variant="ghost"
+            >
+              <TicketPercentIcon /> Mã giảm giá của tôi
+            </Button>
+          ) : null}
           {user?.role === "shop_owner" ? (
             <Button
               className="justify-start"

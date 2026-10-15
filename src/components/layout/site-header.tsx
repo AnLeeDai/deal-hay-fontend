@@ -5,6 +5,7 @@ import {
   MessageCircleIcon,
   ShieldCheckIcon,
   StoreIcon,
+  TicketPercentIcon,
   TruckIcon,
 } from "lucide-react"
 
@@ -78,6 +79,15 @@ export async function SiteHeader() {
               label={item.label}
             />
           ))}
+          {user ? (
+            <Button
+              nativeButton={false}
+              render={<Link href="/discount-codes" />}
+              variant="ghost"
+            >
+              <TicketPercentIcon /> Mã giảm giá
+            </Button>
+          ) : null}
           {user?.role === "shop_owner" ? (
             <Button
               nativeButton={false}

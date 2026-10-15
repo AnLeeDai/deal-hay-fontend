@@ -31,6 +31,14 @@ export default function TermsPage() {
           Giá và tổng tiền ở bước xác nhận là thông tin bạn cần kiểm tra trước
           khi đặt.
         </p>
+        <p>
+          Mã giảm giá nhận được dành cho tài khoản nhận mã và sản phẩm được ghi
+          trên mã. Bạn có thể dùng ngay hoặc lưu trong mục Mã giảm giá để dùng
+          trước ngày hết hạn. Có thể cộng nhiều mã của cùng sản phẩm để giảm
+          tiền hàng đến 0đ. Mỗi mã chỉ áp dụng một lần cho một đơn hàng; mã chưa
+          cần dùng khi tiền hàng đã về 0đ được giữ lại. Thông tin mức giảm và
+          hạn dùng được hiển thị khi nhận mã.
+        </p>
       </section>
       <section className="space-y-2">
         <h2 className="text-xl font-semibold">

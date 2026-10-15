@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 
 import { getCurrentSession } from "@/api/auth/queries"
 import { isProduction } from "@/config/env"
+import { getAuthPageHref } from "@/lib/auth-redirect"
 import {
   AUTH_NAME_COOKIE,
   AUTH_ROLE_COOKIE,
@@ -42,10 +43,10 @@ export async function clearAuthCookies(): Promise<void> {
   store.delete(AUTH_NAME_COOKIE)
 }
 
-export async function requireAuth(): Promise<User> {
+export async function requireAuth(redirectTo?: string): Promise<User> {
   const session = await getCurrentSession()
   if (!session.user) {
-    redirect("/sign-in")
+    redirect(getAuthPageHref("/sign-in", redirectTo))
   }
   return session.user
 }

@@ -99,7 +99,7 @@ test("an available ad offer shows the regular price, sale price, percentage, and
   assert.ok(rendered.includes(formatCurrency(100000)))
   assert.ok(rendered.includes(formatCurrency(80000)))
   assert.ok(rendered.includes("20"))
-  assert.ok(rendered.includes("Giá sau khi xem quảng cáo"))
+  assert.ok(rendered.includes("Giá khi dùng mã ưu đãi"))
   assert.ok(rendered.includes("line-through"))
 })
 
@@ -111,5 +111,5 @@ test("an unavailable advertisement offers only the regular purchase price", () =
   })
   assert.ok(rendered.includes(formatCurrency(100000)))
   assert.ok(!rendered.includes(formatCurrency(80000)))
-  assert.ok(!rendered.includes("Giá sau khi xem quảng cáo"))
+  assert.ok(!rendered.includes("Giá khi dùng mã ưu đãi"))
 })

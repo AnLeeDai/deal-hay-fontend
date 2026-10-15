@@ -51,13 +51,6 @@ export async function updateProductPricingAction(
           ? Number(formData.get("old_price"))
           : null,
         video_url: formData.get("video_url") || null,
-        advertisement_video_url:
-          formData.get("advertisement_video_url") || null,
-        advertisement_duration_seconds: formData.get(
-          "advertisement_duration_seconds"
-        )
-          ? Number(formData.get("advertisement_duration_seconds"))
-          : null,
       },
     })
     revalidatePath("/shop-manage")
@@ -96,12 +89,6 @@ export async function createProductAction(
       ? Number(formData.get("old_price"))
       : "",
     video_url: formData.get("video_url") || "",
-    advertisement_video_url: formData.get("advertisement_video_url") || "",
-    advertisement_duration_seconds: formData.get(
-      "advertisement_duration_seconds"
-    )
-      ? Number(formData.get("advertisement_duration_seconds"))
-      : "",
     stock: Number(formData.get("stock")),
     description: formData.get("description"),
     label: formData.get("label"),
@@ -134,13 +121,6 @@ export async function createProductAction(
   if (typeof parsed.data.old_price === "number")
     payload.set("old_price", String(parsed.data.old_price))
   if (parsed.data.video_url) payload.set("video_url", parsed.data.video_url)
-  if (parsed.data.advertisement_video_url)
-    payload.set("advertisement_video_url", parsed.data.advertisement_video_url)
-  if (typeof parsed.data.advertisement_duration_seconds === "number")
-    payload.set(
-      "advertisement_duration_seconds",
-      String(parsed.data.advertisement_duration_seconds)
-    )
   payload.set("stock", String(parsed.data.has_variants ? 0 : parsed.data.stock))
   if (parsed.data.description && parsed.data.description !== "") {
     payload.set("description", parsed.data.description)

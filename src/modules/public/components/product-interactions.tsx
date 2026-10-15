@@ -193,15 +193,17 @@ export function ProductInteractions({
   product,
   canReview = false,
   hasReview = false,
+  initialDiscountCode,
 }: {
   shop: PublicShop
   product: PublicProduct
   canReview?: boolean
   hasReview?: boolean
+  initialDiscountCode?: string
 }) {
   const [isPending, startTransition] = useTransition()
   const [isChatPending, startChatTransition] = useTransition()
-  const [orderOpen, setOrderOpen] = useState(false)
+  const [orderOpen, setOrderOpen] = useState(Boolean(initialDiscountCode))
   const router = useRouter()
   const [selectedVariantId, setSelectedVariantId] = useState(
     () => defaultProductVariant(product.variants)?.id
@@ -298,7 +300,7 @@ export function ProductInteractions({
                   </Badge>
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Giá ưu đãi sau khi xem hết quảng cáo
+                  Giá ưu đãi tham khảo; có thể giảm thêm bằng mã tích lũy
                 </p>
               </>
             ) : (
@@ -530,11 +532,11 @@ export function ProductInteractions({
         shop={shop}
         product={product}
         variant={selectedVariant}
-        salePrice={displayedPrice}
         regularPrice={regularPrice}
         stock={displayedStock}
         onMessage={openProductChat}
         messagePending={isChatPending}
+        initialDiscountCode={initialDiscountCode}
       />
     </div>
   )

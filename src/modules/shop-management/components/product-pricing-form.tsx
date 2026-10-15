@@ -23,7 +23,7 @@ export function ProductPricingForm({ product }: { product: ShopProduct }) {
   const fields = [
     {
       name: "price",
-      label: "Giá ưu đãi sau quảng cáo / Giá bán",
+      label: "Giá bán sản phẩm",
       type: "number",
       value: product.price,
       min: 1000,
@@ -32,7 +32,7 @@ export function ProductPricingForm({ product }: { product: ShopProduct }) {
     },
     {
       name: "old_price",
-      label: "Giá gốc (để trống nếu không giảm giá)",
+      label: "Giá gốc (tùy chọn)",
       type: "number",
       value: product.old_price ?? "",
       min: 1000,
@@ -43,20 +43,6 @@ export function ProductPricingForm({ product }: { product: ShopProduct }) {
       label: "URL video sản phẩm (HTTPS)",
       type: "url",
       value: product.video_url ?? "",
-    },
-    {
-      name: "advertisement_video_url",
-      label: "URL video quảng cáo nhận ưu đãi (HTTPS)",
-      type: "url",
-      value: product.advertisement_video_url ?? "",
-    },
-    {
-      name: "advertisement_duration_seconds",
-      label: "Thời lượng đầy đủ của quảng cáo (giây)",
-      type: "number",
-      value: product.advertisement_duration_seconds ?? "",
-      min: 5,
-      max: 300,
     },
   ]
 
@@ -73,18 +59,18 @@ export function ProductPricingForm({ product }: { product: ShopProduct }) {
       <DialogTrigger
         render={<Button className="w-full" size="sm" variant="outline" />}
       >
-        Giá và quảng cáo
+        Giá và ưu đãi
       </DialogTrigger>
       <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Giá và quảng cáo sản phẩm</DialogTitle>
+          <DialogTitle>Giá và ưu đãi sản phẩm</DialogTitle>
           <DialogDescription>
-            {product.name}. Khách đặt ngay trả giá gốc; xem hết quảng cáo để mở
-            giá ưu đãi. Biến thể áp dụng cùng tỷ lệ giảm giá.
+            {product.name}. Shop thiết lập giá sản phẩm. Quảng cáo và giá trị mã
+            giảm giá được hệ thống tự động quản lý.
           </DialogDescription>
         </DialogHeader>
         <form
-          key={`${product.id}:${product.price}:${product.old_price}:${product.advertisement_video_url}`}
+          key={`${product.id}:${product.price}:${product.old_price}:${product.video_url}`}
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault()
@@ -124,11 +110,11 @@ export function ProductPricingForm({ product }: { product: ShopProduct }) {
             </div>
           ))}
           <p className="text-xs text-muted-foreground">
-            Dùng đường dẫn video trực tiếp. Thời lượng phải khớp với video để
-            xác nhận ưu đãi sau khi xem hết.
+            Giá gốc phải cao hơn giá bán. Mã giảm giá từ quảng cáo được hệ thống
+            tính khi khách đặt hàng.
           </p>
           <Button className="w-full" type="submit" disabled={pending}>
-            {pending ? "Đang lưu..." : "Lưu giá và quảng cáo"}
+            {pending ? "Đang lưu..." : "Lưu giá và ưu đãi"}
           </Button>
         </form>
       </DialogContent>

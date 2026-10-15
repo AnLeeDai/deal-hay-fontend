@@ -72,7 +72,7 @@ export function ProductCard({
                 </Badge>
               </p>
               <p className="text-xs text-muted-foreground">
-                Giá sau khi xem quảng cáo
+                Giá khi dùng mã ưu đãi
               </p>
             </div>
           ) : (
