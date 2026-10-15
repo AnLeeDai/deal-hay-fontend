@@ -10,6 +10,8 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
+    "test:admin-login": "node tests/admin-login-verification.test.mjs",
+    "test:product-price": "node --test tests/product-display-price.test.mjs src/modules/public/lib/variant-selection.test.mjs",
     "test:realtime": "node tests/realtime-chat-state.test.mjs",
     "test:chat-image": "node tests/chat-image-send.test.mjs"
   },

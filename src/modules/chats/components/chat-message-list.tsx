@@ -33,6 +33,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { UserAvatar } from "@/components/user-avatar"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { loadChatHistoryAction } from "@/modules/chats/actions"
+import { ChatImageAttachment } from "@/modules/chats/components/chat-image-attachment"
 import type { ChatHistoryResponse } from "@/api/chats/types"
 import type { ChatMessage } from "@/types/chat"
 
@@ -179,12 +180,9 @@ export function ChatMessageList({
                   {message.attachment ? (
                     <div className={fromCurrentUser ? "self-end" : ""}>
                       {message.attachment.type === "image" ? (
-                        <MediaImage
-                          alt={message.attachment.name}
-                          className="mb-2 aspect-video w-64 max-w-full rounded-xl"
-                          fallbackLabel="Không thể tải ảnh"
-                          sizes="256px"
-                          src={`/api/chat-attachments/${encodeURIComponent(message.id)}`}
+                        <ChatImageAttachment
+                          messageId={message.id}
+                          name={message.attachment.name}
                         />
                       ) : null}
                       <Button

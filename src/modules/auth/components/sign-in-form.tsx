@@ -1,12 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { useTransition } from "react"
+import { useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
 import { FormSubmitButton } from "@/components/form-submit-button"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -30,6 +31,8 @@ import { signInSchema, type SignInValues } from "@/modules/auth/schemas/auth"
 
 export function SignInForm({ redirectTo }: { redirectTo?: string }) {
   const [isPending, startTransition] = useTransition()
+  const [requiresAdminVerification, setRequiresAdminVerification] =
+    useState(false)
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
     defaultValues: {
@@ -39,16 +42,48 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
     },
   })
 
-  const onSubmit = form.handleSubmit((values) => {
+  const resetAdminVerification = () => {
+    setRequiresAdminVerification(false)
+    form.setValue("admin_verification_code", "")
+    form.clearErrors("admin_verification_code")
+  }
+
+  const submitSignIn = (values: SignInValues, resendCode = false) => {
+    if (
+      requiresAdminVerification &&
+      !resendCode &&
+      !values.admin_verification_code
+    ) {
+      form.setError("admin_verification_code", {
+        type: "required",
+        message: "Vui lòng nhập mã xác minh gồm 6 chữ số.",
+      })
+      form.setFocus("admin_verification_code")
+      return
+    }
+
     startTransition(async () => {
       const state = await signInAction(values, redirectTo)
+
+      if (state.requiresAdminVerification) {
+        setRequiresAdminVerification(true)
+      }
+
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
 
       if (!state.success && !hasFieldErrors && state.message) {
         toast.error(state.message)
       }
     })
-  })
+  }
+
+  const onSubmit = form.handleSubmit((values) => submitSignIn(values))
+
+  const resendVerificationCode = () => {
+    form.setValue("admin_verification_code", "")
+    form.clearErrors("admin_verification_code")
+    void form.handleSubmit((values) => submitSignIn(values, true))()
+  }
 
   return (
     <Card>
@@ -74,6 +109,11 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
                       placeholder="you@example.com"
                       type="text"
                       {...field}
+                      disabled={isPending}
+                      onChange={(event) => {
+                        field.onChange(event)
+                        resetAdminVerification()
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -91,35 +131,64 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
                       autoComplete="current-password"
                       type="password"
                       {...field}
+                      disabled={isPending}
+                      onChange={(event) => {
+                        field.onChange(event)
+                        resetAdminVerification()
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="admin_verification_code"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Mã xác minh admin (nếu có)</FormLabel>
-                  <FormControl>
-                    <Input
-                      inputMode="numeric"
-                      maxLength={6}
-                      type="text"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {requiresAdminVerification ? (
+              <div className="space-y-2">
+                <FormField
+                  control={form.control}
+                  name="admin_verification_code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Mã xác minh quản trị viên</FormLabel>
+                      <FormControl>
+                        <Input
+                          autoComplete="one-time-code"
+                          autoFocus
+                          disabled={isPending}
+                          inputMode="numeric"
+                          maxLength={6}
+                          type="text"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  className="h-auto px-0"
+                  disabled={isPending}
+                  onClick={resendVerificationCode}
+                  type="button"
+                  variant="link"
+                >
+                  Gửi lại mã xác minh
+                </Button>
+              </div>
+            ) : null}
             <FormSubmitButton
               className="w-full"
-              idleText="Đăng nhập"
+              idleText={
+                requiresAdminVerification
+                  ? "Xác minh và đăng nhập"
+                  : "Đăng nhập"
+              }
               pending={isPending}
-              pendingText="Đang đăng nhập..."
+              pendingText={
+                requiresAdminVerification
+                  ? "Đang xác minh..."
+                  : "Đang đăng nhập..."
+              }
             />
           </form>
         </Form>

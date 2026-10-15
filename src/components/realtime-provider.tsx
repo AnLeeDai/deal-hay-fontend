@@ -16,6 +16,8 @@ import type { ConnectionStatus } from "laravel-echo"
 import type { RealtimeConfig } from "@/api/chats/types"
 import { refreshUnreadCountsAction } from "@/modules/chats/actions"
 import { loadRealtimeConfigAction } from "@/modules/realtime/actions"
+import { useNotificationSound } from "@/modules/realtime/hooks/use-notification-sound"
+import { useUnreadTabTitle } from "@/modules/realtime/hooks/use-unread-tab-title"
 import type { UnreadCounts } from "@/types/auth"
 
 type RealtimeConnection = {
@@ -31,6 +33,8 @@ type RealtimeContextValue = RealtimeConnection & {
   unreadCounts: UnreadCounts
   setUnreadCounts: Dispatch<SetStateAction<UnreadCounts>>
   synchronizeUnreadCounts: () => Promise<void>
+  notificationSoundEnabled: boolean
+  toggleNotificationSound: () => void
 }
 
 const RealtimeContext = createContext<RealtimeContextValue | null>(null)
@@ -62,6 +66,19 @@ export function RealtimeProvider({
       ? configOverride.value
       : config
   const [unreadCounts, updateUnreadCounts] = useState(initialUnreadCounts)
+  const seenEvents = useRef({
+    userId: currentUserId,
+    messages: new Set<string>(),
+    notifications: new Set<string>(),
+  })
+  const {
+    notificationSoundEnabled,
+    toggleNotificationSound,
+    playNotificationSound,
+  } = useNotificationSound(currentUserId)
+  useUnreadTabTitle(
+    currentUserId ? unreadCounts.messages + unreadCounts.notifications : 0
+  )
   const unreadRevision = useRef(0)
   const mounted = useRef(false)
   const unreadRefreshRequested = useRef(false)
@@ -164,8 +181,15 @@ export function RealtimeProvider({
     let accountSubscribed = false
     let subscriptionFailed = false
     let hasSubscribed = false
-    const seenMessageIds = new Set<string>()
-    const seenNotificationIds = new Set<string>()
+    if (seenEvents.current.userId !== currentUserId) {
+      seenEvents.current = {
+        userId: currentUserId,
+        messages: new Set<string>(),
+        notifications: new Set<string>(),
+      }
+    }
+    const seenMessageIds = seenEvents.current.messages
+    const seenNotificationIds = seenEvents.current.notifications
 
     const rememberEvent = (ids: Set<string>, id: string) => {
       if (ids.has(id)) return false
@@ -237,6 +261,7 @@ export function RealtimeProvider({
               !payload.sender ||
               typeof payload.sender !== "object" ||
               !("id" in payload.sender) ||
+              typeof payload.sender.id !== "string" ||
               payload.sender.id === currentUserId ||
               !("read_at" in payload) ||
               payload.read_at ||
@@ -249,6 +274,7 @@ export function RealtimeProvider({
               ...previous,
               messages: previous.messages + 1,
             }))
+            playNotificationSound(`message:${payload.id}`)
             void synchronizeUnreadCounts()
           })
           .listen(".messages.read", (payload: unknown) => {
@@ -308,6 +334,7 @@ export function RealtimeProvider({
               ...previous,
               notifications: previous.notifications + 1,
             }))
+            playNotificationSound(`notification:${payload.id}`)
             void synchronizeUnreadCounts()
           })
           .subscribed(() => void synchronizeUnreadCounts())
@@ -339,6 +366,7 @@ export function RealtimeProvider({
     key,
     loadingConfig,
     port,
+    playNotificationSound,
     scheme,
     setUnreadCounts,
     synchronizeUnreadCounts,
@@ -352,6 +380,8 @@ export function RealtimeProvider({
       unreadCounts,
       setUnreadCounts,
       synchronizeUnreadCounts,
+      notificationSoundEnabled,
+      toggleNotificationSound,
     }),
     [
       connection,
@@ -360,6 +390,8 @@ export function RealtimeProvider({
       unreadCounts,
       setUnreadCounts,
       synchronizeUnreadCounts,
+      notificationSoundEnabled,
+      toggleNotificationSound,
     ]
   )
 

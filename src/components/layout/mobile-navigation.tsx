@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { SignOutButton } from "@/components/layout/sign-out-button"
+import { NotificationSoundToggle } from "@/components/layout/notification-sound-toggle"
 import { UnreadCountBadge } from "@/components/layout/unread-count-badge"
 import { useRealtime } from "@/components/realtime-provider"
 import { Button } from "@/components/ui/button"
@@ -125,6 +126,12 @@ export function MobileNavigation({ user }: { user: User | null }) {
         </nav>
 
         <div className="mt-auto space-y-3 border-t p-4">
+          {user ? (
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span>Âm thanh tin nhắn và thông báo</span>
+              <NotificationSoundToggle />
+            </div>
+          ) : null}
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <ShieldCheckIcon className="size-4 text-primary" /> Giao dịch minh
             bạch và an toàn

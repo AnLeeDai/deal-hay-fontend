@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react"
 
 import type { ChatMessagesReadEvent } from "@/api/chats/types"
 import { useRealtime } from "@/components/realtime-provider"
+import { useRealtimeLatency } from "@/modules/chats/hooks/use-realtime-latency"
 import type { ChatMessage } from "@/types/chat"
 
 type PresenceMember = { id: string; name: string }
@@ -29,6 +30,7 @@ export function useChatRealtime({
 } & ChatRealtimeCallbacks) {
   const { echo, socketId, status, subscriptionVersion, reconnect } =
     useRealtime()
+  const latency = useRealtimeLatency({ echo, socketId, status })
   const callbacks = useRef({
     onMessage,
     onMessagesRead,
@@ -104,5 +106,5 @@ export function useChatRealtime({
     if (status !== "connected") callbacks.current.onPresenceChange(false)
   }, [status])
 
-  return { socketId, status, reconnect }
+  return { socketId, status, reconnect, ...latency }
 }

@@ -54,6 +54,7 @@ export type PublicProduct = {
   category: string
   description: string | null
   price: number
+  display_price?: number
   stock: number
   has_variants: boolean
   label: string | null

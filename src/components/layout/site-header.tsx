@@ -10,6 +10,7 @@ import {
 
 import { getCurrentSession } from "@/api/auth/queries"
 import { MobileNavigation } from "@/components/layout/mobile-navigation"
+import { NotificationSoundToggle } from "@/components/layout/notification-sound-toggle"
 import { SignOutButton } from "@/components/layout/sign-out-button"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { UnreadNavigationLink } from "@/components/layout/unread-count-badge"
@@ -101,6 +102,7 @@ export async function SiteHeader() {
           <ThemeToggle />
           {user ? (
             <>
+              <NotificationSoundToggle />
               <Button
                 className="h-10 gap-2"
                 nativeButton={false}

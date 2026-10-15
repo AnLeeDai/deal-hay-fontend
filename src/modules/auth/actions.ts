@@ -33,10 +33,14 @@ function fromApiError(error: ApiError): ActionState {
   }
 }
 
+export type SignInActionState = ActionState & {
+  requiresAdminVerification?: boolean
+}
+
 export async function signInAction(
   values: SignInValues,
   redirectTo?: string
-): Promise<ActionState> {
+): Promise<SignInActionState> {
   const parsed = signInSchema.safeParse(values)
 
   if (!parsed.success) {
@@ -57,7 +61,12 @@ export async function signInAction(
     revalidatePath("/")
   } catch (error) {
     if (error instanceof ApiError) {
-      return fromApiError(error)
+      return {
+        ...fromApiError(error),
+        requiresAdminVerification:
+          error.status === 422 &&
+          Boolean(error.errors?.admin_verification_code?.length),
+      }
     }
     return { success: false, message: "Không thể đăng nhập. Vui lòng thử lại." }
   }

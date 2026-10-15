@@ -45,11 +45,27 @@ import type {
   SelectedConversation,
 } from "@/types/chat"
 
-function RealtimeStatusBadge({ status }: { status: ConnectionStatus }) {
+function RealtimeStatusBadge({
+  status,
+  latencyMs,
+  pingTimedOut,
+}: {
+  status: ConnectionStatus
+  latencyMs: number | null
+  pingTimedOut: boolean
+}) {
   if (status === "connected") {
     return (
-      <Badge variant="secondary">
-        <WifiIcon /> Trực tiếp
+      <Badge
+        title="Độ trễ khứ hồi tới máy chủ tin nhắn"
+        variant={pingTimedOut ? "outline" : "secondary"}
+      >
+        <WifiIcon /> Trực tiếp ·{" "}
+        {latencyMs !== null
+          ? `Ping ${latencyMs} ms`
+          : pingTimedOut
+            ? "Ping quá hạn"
+            : "Đang đo ping…"}
       </Badge>
     )
   }
@@ -242,15 +258,16 @@ export function ChatsPageClient({
     })
   }, [])
 
-  const { socketId, status, reconnect } = useChatRealtime({
-    currentUserId,
-    selectedConversationId: activeConversation?.id,
-    counterpartId: activeConversation?.counterpart.id,
-    onMessage: handleIncomingMessage,
-    onMessagesRead: handleMessagesRead,
-    onPresenceChange: handlePresenceChange,
-    onReconnect: synchronize,
-  })
+  const { socketId, status, reconnect, latencyMs, pingTimedOut } =
+    useChatRealtime({
+      currentUserId,
+      selectedConversationId: activeConversation?.id,
+      counterpartId: activeConversation?.counterpart.id,
+      onMessage: handleIncomingMessage,
+      onMessagesRead: handleMessagesRead,
+      onPresenceChange: handlePresenceChange,
+      onReconnect: synchronize,
+    })
 
   useEffect(() => {
     socketIdRef.current = socketId
@@ -339,8 +356,12 @@ export function ChatsPageClient({
           title="Tin nhắn"
           description="Trao đổi trực tiếp với cửa hàng và nhận phản hồi ngay khi có tin nhắn mới."
           actions={
-            <div className="flex items-center gap-2">
-              <RealtimeStatusBadge status={status} />
+            <div className="flex flex-wrap items-center gap-2">
+              <RealtimeStatusBadge
+                latencyMs={latencyMs}
+                pingTimedOut={pingTimedOut}
+                status={status}
+              />
               {(status === "failed" || status === "disconnected") && (
                 <Button variant="outline" size="sm" onClick={reconnect}>
                   Kết nối lại

@@ -8,8 +8,8 @@ import {
 
 import { ApiError } from "@/api/client"
 import { getProduct } from "@/api/catalog/queries"
+import { ImagePreview } from "@/components/image-preview"
 import { EmptyState } from "@/components/layout/empty-state"
-import { MediaImage } from "@/components/media-image"
 import { Badge } from "@/components/ui/badge"
 import {
   Breadcrumb,
@@ -171,12 +171,13 @@ export async function ProductPageContainer({
                 <CardContent>
                   <p className="leading-6">{review.content}</p>
                   {review.image_url ? (
-                    <MediaImage
+                    <ImagePreview
                       alt={`Ảnh đánh giá của ${review.customer.name}`}
-                      className="mt-2 aspect-video w-full rounded-lg"
+                      className="mt-2 w-full rounded-lg"
                       fallbackLabel="Không thể tải ảnh đánh giá"
                       sizes="(max-width: 768px) 100vw, 50vw"
                       src={review.image_url}
+                      thumbnailClassName="aspect-video w-full rounded-lg"
                     />
                   ) : null}
                   {review.shop_reply ? (

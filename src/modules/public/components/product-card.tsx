@@ -52,7 +52,7 @@ export function ProductCard({
             {product.category}
           </p>
           <p className="pt-1 text-base font-semibold text-primary sm:text-lg">
-            {formatCurrency(product.price)}
+            {formatCurrency(product.display_price ?? product.price)}
           </p>
         </CardContent>
         <CardFooter className="justify-between gap-2 border-t px-3 py-2.5 text-xs text-muted-foreground sm:px-4">
