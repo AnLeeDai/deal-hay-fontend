@@ -50,17 +50,29 @@ export default function PrivacyPage() {
       <section className="space-y-2">
         <h2 className="text-xl font-semibold">5. Quảng cáo</h2>
         <p>
-          Các trang mua sắm có thể hiển thị quảng cáo của Adsterra. Đối tác
-          quảng cáo có thể sử dụng cookie, địa chỉ IP và thông tin trình duyệt
-          để phân phối và đo lường quảng cáo. Khi mở liên kết quảng cáo, bạn
-          được chuyển đến trang của bên thứ ba. Xem thêm tại{" "}
+          Các trang mua sắm có thể hiển thị quảng cáo của Google AdSense. Google
+          và các đối tác quảng cáo có thể sử dụng cookie, địa chỉ IP và thông
+          tin trình duyệt để phân phối, cá nhân hóa và đo lường quảng cáo dựa
+          trên những lần bạn truy cập trang này và các trang khác. Xem thêm tại{" "}
           <a
             className="text-primary underline"
-            href="https://adsterra.com/privacy-policy/"
+            href="https://policies.google.com/technologies/ads?hl=vi"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Chính sách bảo mật của Adsterra
+            Cách Google sử dụng thông tin cho quảng cáo
+          </a>
+          .
+        </p>
+        <p>
+          Bạn có thể quản lý lựa chọn và tắt cá nhân hóa quảng cáo tại{" "}
+          <a
+            className="text-primary underline"
+            href="https://myadcenter.google.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Trung tâm quảng cáo của Google
           </a>
           .
         </p>

@@ -895,3 +895,11 @@ Tên biến phải đúng là `NEXT_PUBLIC_API`, giá trị là URL HTTP API c�
 Trước khi deploy frontend, kiểm tra `GET https://your-api-host.onrender.com/api/` trả JSON trang chủ với HTTP 200. `/up` trả 200 chưa đủ để xác nhận Laravel API hoạt động: nếu nó trả `{"health":"OK"}` và `/api/*` trả `Not found.`, traffic có thể đang đi vào Laravel Reverb. Trên Render, chỉ HTTP server được nghe cổng công khai; Reverb phải nghe nội bộ và đi qua Caddy.
 
 Nếu frontend nằm trong monorepo, đặt Vercel Root Directory là `deal-hay-fontend`. Build command và output directory giữ mặc định của Next.js.
+
+## 31. Google AdSense
+
+Website chỉ tích hợp Google AdSense Auto ads với publisher `pub-7303400269186048`. Mã và phạm vi khởi tạo được cấu hình tại `src/config/advertising.ts`; `public/ads.txt` cho phép Google phân phối quảng cáo cho publisher này. Không cần thêm mã đơn vị quảng cáo riêng.
+
+Sau khi deploy, kiểm tra `/ads.txt`, rồi mở [cài đặt quảng cáo của website](https://adsense.google.com/adsense/u/0/pub-7303400269186048/myads/sites/preview?url=deal-hay.vercel.app), bật Auto ads và chọn Apply to site nếu chưa bật. Vị trí và số lượng quảng cáo do cài đặt Auto ads quyết định; một mã tích hợp có thể hiển thị nhiều quảng cáo. Xem [hướng dẫn của Google](https://support.google.com/adsense/answer/9261307?hl=vi).
+
+Mã chỉ khởi tạo trên trang chủ, gian hàng và chi tiết sản phẩm. Vì script đã tải có thể tiếp tục hoạt động sau khi điều hướng trong ứng dụng, hãy cấu hình Page exclusions trong AdSense cho các trang tài khoản, đăng nhập, quản trị, tin nhắn và đặt hàng để giữ phạm vi hiển thị này.

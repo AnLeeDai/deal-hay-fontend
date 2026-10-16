@@ -9,6 +9,7 @@ import { StorefrontAdvertising } from "@/components/storefront-advertising"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { ADSENSE_CLIENT_ID } from "@/config/advertising"
 import { cn } from "@/lib/utils"
 
 const inter = Inter({
@@ -24,6 +25,9 @@ export const metadata: Metadata = {
   },
   description:
     "Khám phá sản phẩm, kết nối trực tiếp với cửa hàng uy tín và săn những deal hay mỗi ngày.",
+  other: {
+    "google-adsense-account": ADSENSE_CLIENT_ID,
+  },
 }
 
 export default function RootLayout({
