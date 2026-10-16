@@ -48,7 +48,7 @@ const { StorefrontAdvertising } = await import(
 
 test("loads one async AdSense script for the authorized publisher without an ad link or banner", () => {
   setPathname("/")
-  assert.equal(ADSENSE_PUBLISHER_ID, "pub-7303400269186048")
+  assert.equal(ADSENSE_PUBLISHER_ID, "pub-8299349376566920")
   assert.equal(ADSENSE_CLIENT_ID, `ca-${ADSENSE_PUBLISHER_ID}`)
   assert.equal(
     ADSENSE_SCRIPT_URL,
