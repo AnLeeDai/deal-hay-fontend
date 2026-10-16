@@ -898,8 +898,24 @@ Nếu frontend nằm trong monorepo, đặt Vercel Root Directory là `deal-hay-
 
 ## 31. Google AdSense
 
-Website chỉ tích hợp Google AdSense Auto ads với publisher `pub-8299349376566920`. Mã và phạm vi khởi tạo được cấu hình tại `src/config/advertising.ts`; `public/ads.txt` cho phép Google phân phối quảng cáo cho publisher này. Không cần thêm mã đơn vị quảng cáo riêng.
+Quảng cáo tự động sử dụng Google AdSense Auto ads với publisher `pub-8299349376566920`. Mã và phạm vi khởi tạo được cấu hình tại `src/config/advertising.ts`; `public/ads.txt` cho phép Google phân phối quảng cáo cho publisher này. Không cần thêm mã đơn vị quảng cáo riêng.
 
 Sau khi deploy, kiểm tra `/ads.txt`, rồi mở [cài đặt quảng cáo của website](https://adsense.google.com/adsense/u/0/pub-8299349376566920/myads/sites/preview?url=deal-hay.vercel.app), bật Auto ads và chọn Apply to site nếu chưa bật. Vị trí và số lượng quảng cáo do cài đặt Auto ads quyết định; một mã tích hợp có thể hiển thị nhiều quảng cáo. Xem [hướng dẫn của Google](https://support.google.com/adsense/answer/9261307?hl=vi).
 
 Mã chỉ khởi tạo trên trang chủ, gian hàng và chi tiết sản phẩm. Vì script đã tải có thể tiếp tục hoạt động sau khi điều hướng trong ứng dụng, hãy cấu hình Page exclusions trong AdSense cho các trang tài khoản, đăng nhập, quản trị, tin nhắn và đặt hàng để giữ phạm vi hiển thị này.
+
+## 32. Nhiệm vụ nhận mã giảm giá
+
+Khi nguồn nhiệm vụ đã được cấu hình và kích hoạt, người dùng có thể mở trang nhiệm vụ từ hộp đặt hàng. Mỗi mốc nhiệm vụ có doanh thu được nhà cung cấp xác nhận sẽ cấp một mã giảm giá cố định, mặc định **1.000đ**, gắn với tài khoản và sản phẩm đã chọn. Mã được lưu vào kho mã để người dùng áp dụng khi đặt hàng. Thao tác mở tab, quay lại trang hay thời gian chờ không tự cấp mã.
+
+Frontend gọi trực tiếp Laravel qua Server Actions để đọc trạng thái, tạo phiên và kiểm tra mã sau khi người dùng quay lại. Khóa xác minh AdGem chỉ nằm ở backend. Khi backend chưa được cấu hình, giao diện thông báo nhiệm vụ đang được chuẩn bị; người dùng vẫn đặt hàng bình thường.
+
+Tài khoản hiện tại sử dụng Adsterra Publisher với SmartLink/Direct Link và quảng cáo thông thường. Cấu hình mặc định `REWARDED_TASK_PROVIDER=adsterra` giữ tính năng nhận mã chưa kích hoạt vì chưa có tích hợp xác nhận hoàn thành nhiệm vụ cho nguồn này. Không dùng thống kê lượt mở hoặc click làm xác nhận nhiệm vụ.
+
+Adapter đã chuẩn bị cho AdGem Web Offerwall là lựa chọn riêng, chỉ kích hoạt khi có tài khoản và Property **Desktop/Web** được phê duyệt cho `deal-hay.vercel.app`, cùng mô hình phần thưởng đã khai báo. Chọn `REWARDED_TASK_PROVIDER=adgem`, cấu hình App ID, khóa Postback và endpoint `/api/postbacks/adgem/v3` trên backend theo hướng dẫn triển khai backend. Cần cấu hình Postback v3 trả về đầy đủ `player_id`, `app_id`, `conversion_id`, `goal_id`, `conversion_type`, `payout`, `c1` và `c2`. Backend kiểm tra chữ ký trên nội dung POST, đối chiếu phiên và chỉ cấp mã một lần cho một chuyển đổi hợp lệ. Chạy migration backend trước khi triển khai frontend.
+
+Offerwall do AdGem hiển thị thường niêm yết điểm thưởng theo doanh thu và hệ số quy đổi của tài khoản. Một hệ số chung không bảo đảm mọi nhiệm vụ đều hiển thị đúng một mã 1.000đ. Trước khi mở adapter này, cần thống nhất cách hiển thị và trao thưởng cố định với AdGem, hoặc triển khai danh sách nhiệm vụ riêng hiển thị đúng phần thưởng qua Offer API. Việc nhập App ID và khóa chưa đủ để xác nhận phần thưởng trên trang đối tác đã khớp với coupon của Deal Hay.
+
+Backend mặc định giữ `ADGEM_REWARD_MAPPING_CONFIRMED=false`; chỉ đặt thành `true` sau khi cách hiển thị và trao thưởng đã khớp với mô hình trên.
+
+Mức 1.000đ là ngân sách giảm giá của website. Doanh thu trong callback là doanh thu chuyển đổi do nhà cung cấp ghi nhận, có thể bị điều chỉnh và chưa phải tiền đã được thanh toán. Theo dõi bảng điều khiển AdGem và mức chiết khấu để đối soát thực tế. Xem [Web Offerwall](https://docs.adgem.com/docs/integrate/offer-delivery/pre-built/web-offerwall) và [Postback v3](https://docs.adgem.com/docs/integrate/reward-mechanism/postbacks-v3).

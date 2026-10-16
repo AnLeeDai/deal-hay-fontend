@@ -44,6 +44,20 @@ export default function TermsPage() {
           đơn hàng. Nội dung trên trang quảng cáo bên thứ ba tuân theo điều
           khoản của bên cung cấp trang đó.
         </p>
+        <p>
+          Bạn có thể tự chọn tham gia nhiệm vụ nhận mã giảm giá khi tính năng
+          này được mở. Điều kiện hoàn thành được hiển thị trên trang nhiệm vụ
+          của AdGem. Mỗi nhiệm vụ có doanh thu được đối tác xác nhận hợp lệ sẽ
+          cấp một mã giảm giá cho sản phẩm đã chọn; mức mặc định là 1.000đ và
+          được thông báo trước khi bạn tham gia. Mã được lưu vào tài khoản nhận
+          thưởng và có hạn dùng được ghi trên mã. Một nhiệm vụ có nhiều mốc
+          thưởng có thể cấp mã cho từng mốc được xác nhận riêng.
+        </p>
+        <p>
+          Việc xác nhận nhiệm vụ có thể mất thời gian. Mở liên kết, quay lại
+          trang hoặc chờ hết thời gian không thay thế xác nhận của đối tác. Bạn
+          có thể tiếp tục đặt hàng mà không tham gia nhiệm vụ.
+        </p>
       </section>
       <section className="space-y-2">
         <h2 className="text-xl font-semibold">

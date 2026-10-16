@@ -77,6 +77,31 @@ export default function PrivacyPage() {
           .
         </p>
       </section>
+      <section className="space-y-2">
+        <h2 className="text-xl font-semibold">6. Nhiệm vụ nhận mã giảm giá</h2>
+        <p>
+          Khi bạn tự chọn tham gia nhiệm vụ, Deal Hay mở trang Offerwall của
+          AdGem và gửi mã nhận diện dành cho tích hợp cùng thông tin phiên nhiệm
+          vụ để ghi nhận phần thưởng cho đúng tài khoản và sản phẩm. AdGem và
+          bên cung cấp nhiệm vụ có thể xử lý địa chỉ IP, thông tin thiết bị,
+          trình duyệt và hoạt động của bạn theo chính sách của họ. Xem thêm tại{" "}
+          <a
+            className="text-primary underline"
+            href="https://adgem.com/privacy-policy/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Chính sách bảo mật của AdGem
+          </a>
+          .
+        </p>
+        <p>
+          Deal Hay nhận thông tin chuyển đổi do đối tác xác nhận, gồm mã nhiệm
+          vụ, mã giao dịch, thời điểm hoàn thành và doanh thu ghi nhận, để cấp
+          mã giảm giá, đối soát và phòng chống nhận thưởng trùng lặp. Việc tham
+          gia nhiệm vụ là tự nguyện và không phải điều kiện để đặt hàng.
+        </p>
+      </section>
       <Link className="inline-block text-primary underline" href="/sign-up">
         Quay lại đăng ký
       </Link>
