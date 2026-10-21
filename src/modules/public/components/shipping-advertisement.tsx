@@ -1,9 +1,8 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { ADSTERRA_NATIVE_BANNER_CONTAINER_ID } from "@/config/advertising"
 import {
   ADVERTISING_CONSENT_CHANGE_EVENT,
   readAdvertisingConsent,
@@ -11,142 +10,31 @@ import {
   type AdvertisingConsent,
 } from "@/lib/advertising-consent"
 
-function moveBanner(
-  parent: HTMLElement,
-  banner: HTMLElement,
-  before: Node | null
-) {
-  // Modern browsers preserve iframe state during an atomic DOM move.
-  const destination = parent as HTMLElement & {
-    moveBefore?: (node: Node, before: Node | null) => void
-  }
-  if (typeof destination.moveBefore === "function")
-    destination.moveBefore(banner, before)
-  else parent.insertBefore(banner, before)
-}
-
 export function ShippingAdvertisement({
-  onReadyChange,
+  onConsentChange,
 }: {
-  onReadyChange: (ready: boolean) => void
+  onConsentChange: (accepted: boolean) => void
 }) {
-  const slot = useRef<HTMLDivElement>(null)
-  const onReadyChangeRef = useRef(onReadyChange)
   const [consent, setConsent] = useState<AdvertisingConsent | null>(null)
-  const [ready, setReady] = useState(false)
-  const [timedOut, setTimedOut] = useState(false)
-
-  useLayoutEffect(() => {
-    onReadyChangeRef.current = onReadyChange
-  }, [onReadyChange])
-
-  useLayoutEffect(() => {
-    const destination = slot.current
-    if (!destination) return
-
-    let banner: HTMLElement | null = null
-    let originalParent: HTMLElement | null = null
-    let originalNextSibling: Node | null = null
-    let lastReady = false
-    let lastConsent: AdvertisingConsent | null | undefined
-
-    function reportReady(value: boolean) {
-      if (lastReady === value) return
-      lastReady = value
-      setReady(value)
-      onReadyChangeRef.current(value)
-    }
-
-    function restoreBanner() {
-      if (banner && originalParent?.isConnected) {
-        moveBanner(
-          originalParent,
-          banner,
-          originalNextSibling?.parentNode === originalParent
-            ? originalNextSibling
-            : null
-        )
-      }
-      banner = null
-      originalParent = null
-      originalNextSibling = null
-    }
-
-    function syncAdvertisement() {
-      const currentConsent = readAdvertisingConsent(document.cookie)
-      if (lastConsent !== currentConsent) {
-        lastConsent = currentConsent
-        setConsent(currentConsent)
-        setTimedOut(false)
-      }
-      if (currentConsent !== "accepted") {
-        restoreBanner()
-        reportReady(false)
-        return
-      }
-
-      const existing = document.getElementById(
-        ADSTERRA_NATIVE_BANNER_CONTAINER_ID
-      )
-      // Let the storefront place its singleton script beside the original
-      // container before moving it; otherwise accepting consent could leave
-      // that script inside this temporary slot when the dialog closes.
-      const initialized = document.getElementById("adsterra-native-banner")
-      if (existing && initialized && existing !== banner) {
-        restoreBanner()
-        banner = existing
-        originalParent = existing.parentElement
-        originalNextSibling = existing.nextSibling
-        moveBanner(destination!, existing, null)
-      }
-      reportReady(
-        Boolean(
-          banner?.isConnected &&
-          banner.parentElement === destination &&
-          banner.querySelector(
-            'iframe[src]:not([src=""]), a[href]:not([href=""]), img[src]:not([src=""])'
-          )
-        )
-      )
-    }
-
-    // Only borrow the already configured placement. The storefront owns all
-    // provider initialization and consent; this slot never adds a script.
-    const observer = new MutationObserver(syncAdvertisement)
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["src", "href"],
-    })
-    window.addEventListener(ADVERTISING_CONSENT_CHANGE_EVENT, syncAdvertisement)
-    window.addEventListener("focus", syncAdvertisement)
-    window.addEventListener("pageshow", syncAdvertisement)
-    document.addEventListener("visibilitychange", syncAdvertisement)
-    onReadyChangeRef.current(false)
-    syncAdvertisement()
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener(
-        ADVERTISING_CONSENT_CHANGE_EVENT,
-        syncAdvertisement
-      )
-      window.removeEventListener("focus", syncAdvertisement)
-      window.removeEventListener("pageshow", syncAdvertisement)
-      document.removeEventListener("visibilitychange", syncAdvertisement)
-      // A layout cleanup restores React's original parent before this slot
-      // is removed, including when the order dialog closes.
-      restoreBanner()
-      onReadyChangeRef.current(false)
-    }
-  }, [])
 
   useEffect(() => {
-    if (consent !== "accepted") return
-    const timeout = window.setTimeout(() => setTimedOut(true), 12_000)
-    return () => window.clearTimeout(timeout)
-  }, [consent])
+    function syncConsent() {
+      const choice = readAdvertisingConsent(document.cookie)
+      setConsent(choice)
+      onConsentChange(choice === "accepted")
+    }
+    syncConsent()
+    window.addEventListener(ADVERTISING_CONSENT_CHANGE_EVENT, syncConsent)
+    window.addEventListener("focus", syncConsent)
+    window.addEventListener("pageshow", syncConsent)
+    document.addEventListener("visibilitychange", syncConsent)
+    return () => {
+      window.removeEventListener(ADVERTISING_CONSENT_CHANGE_EVENT, syncConsent)
+      window.removeEventListener("focus", syncConsent)
+      window.removeEventListener("pageshow", syncConsent)
+      document.removeEventListener("visibilitychange", syncConsent)
+    }
+  }, [onConsentChange])
 
   function saveConsent(choice: AdvertisingConsent) {
     document.cookie = serializeAdvertisingConsent(
@@ -157,20 +45,23 @@ export function ShippingAdvertisement({
   }
 
   return (
-    <section aria-label="Quảng cáo Adsterra" className="space-y-3">
-      <p className="text-xs font-medium text-muted-foreground uppercase">
-        Quảng cáo đối tác
-      </p>
-      {consent !== "accepted" ? (
+    <section aria-label="Quảng cáo có thưởng Google" className="space-y-3">
+      {consent === "accepted" ? (
+        <p className="text-xs leading-5 text-muted-foreground">
+          Quảng cáo có thưởng do Google cung cấp. Bạn có thể đóng quảng cáo bất
+          cứ lúc nào; đóng trước khi đạt điều kiện sẽ không nhận được mã.
+        </p>
+      ) : (
         <div className="space-y-3 rounded-lg border p-3">
           <p className="text-sm leading-6 text-muted-foreground">
-            Để tải quảng cáo Adsterra, bạn cần đồng ý cookie quảng cáo. Adsterra
+            Để tải quảng cáo có thưởng, bạn cần đồng ý cookie quảng cáo. Google
             và đối tác có thể dùng cookie, địa chỉ IP và thông tin trình duyệt
             để phân phối và đo lường quảng cáo. Xem{" "}
             <a href="/privacy" className="text-primary underline">
               Chính sách bảo mật
             </a>
-            .
+            . Bạn vẫn có thể đặt hàng với phí vận chuyển thông thường nếu không
+            xem quảng cáo.
           </p>
           {consent === "declined" ? (
             <p className="text-sm text-muted-foreground">
@@ -195,18 +86,7 @@ export function ShippingAdvertisement({
             </Button>
           </div>
         </div>
-      ) : null}
-      <div
-        ref={slot}
-        className={consent === "accepted" ? "min-h-32" : "hidden"}
-      />
-      {consent === "accepted" && !ready ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          {timedOut
-            ? "Quảng cáo hiện chưa khả dụng. Vui lòng thử lại sau hoặc kiểm tra trình chặn quảng cáo."
-            : "Đang tải quảng cáo…"}
-        </p>
-      ) : null}
+      )}
     </section>
   )
 }

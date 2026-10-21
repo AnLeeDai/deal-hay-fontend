@@ -99,6 +99,7 @@ export function ProductOrderDialog({
   )
   const [shippingCodePending, startShippingCodeTransition] = useTransition()
   const [shippingRewardPending, setShippingRewardPending] = useState(false)
+  const [shippingAdVisible, setShippingAdVisible] = useState(false)
   const [reloadShippingCode, setReloadShippingCode] = useState(0)
   const shippingCodeRevision = useRef(0)
   const [shippingQuote, setShippingQuote] = useState<{
@@ -398,6 +399,7 @@ export function ProductOrderDialog({
   return (
     <Dialog
       open={open}
+      modal={!shippingAdVisible}
       onOpenChange={(value) => {
         if (!pending && !shippingRewardPending) {
           if (!value) setShowShippingOffer(false)
@@ -481,6 +483,7 @@ export function ProductOrderDialog({
                 code={availableShippingCode}
                 disabled={pending}
                 onRedeemingChange={setShippingRewardPending}
+                onAdVisibleChange={setShippingAdVisible}
                 onCodeReceived={(code) => {
                   shippingCodeRevision.current += 1
                   setShippingCode(code)

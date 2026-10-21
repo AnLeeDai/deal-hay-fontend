@@ -896,21 +896,32 @@ Trước khi deploy frontend, kiểm tra `GET https://your-api-host.onrender.com
 
 Nếu frontend nằm trong monorepo, đặt Vercel Root Directory là `deal-hay-fontend`. Build command và output directory giữ mặc định của Next.js.
 
-## 31. Quảng cáo Adsterra
+## 31. Google AdSense và Google Ad Manager Rewarded Ads
 
-Quảng cáo dùng ba mã Adsterra đã cấp: Social Bar, Popunder và Native Banner. URL và mã container được quản lý tập trung tại `src/config/advertising.ts`. Giữ nguyên URL và các thuộc tính của mã được cấp, gồm `data-cfasync="false"`; Native Banner giữ `async`. Xem [hướng dẫn tích hợp chính thức](https://help-publishers.adsterra.com/en/articles/5210780-adding-ads-to-a-static-html-site) và [lưu ý Cloudflare Rocket Loader](https://help-publishers.adsterra.com/en/articles/5213852-using-adsterra-ads-with-cloudflare).
+Tài khoản Google AdSense dùng mã `ca-pub-7303400269186048`. Script do chủ website cung cấp được quản lý tại `src/config/advertising.ts` và chỉ tải một lần sau khi khách đồng ý cookie trên các trang mua sắm. Metadata chứa `google-adsense-account`; `public/ads.txt` được phục vụ tại `/ads.txt` với dòng:
 
-Các script quảng cáo chỉ hoạt động trên trang chủ, gian hàng và chi tiết sản phẩm sau khi người dùng đồng ý. Popunder được thêm một lần vào cuối `head`; Social Bar được thêm một lần ở cuối `body`. Native Banner dùng một container duy nhất trong layout mua sắm, giữ nguyên khi chuyển giữa các trang mua sắm và không tự tải lại quảng cáo theo route hoặc bộ đếm thời gian. Không lặp cùng mã Native Banner trên một trang; nếu cần vị trí khác, yêu cầu mã bổ sung từ Adsterra. Tần suất Popunder, tần suất và vị trí Social Bar do Adsterra cấu hình qua hỗ trợ.
+`google.com, pub-7303400269186048, DIRECT, f08c47fec0942fa0`
 
-Adsterra không cung cấp callback xác nhận xem hoàn tất cho ba mã này. [Điều khoản publisher](https://adsterra.com/publishers-terms-managed/) hạn chế traffic có thưởng. Chương trình mã vận chuyển bên dưới mặc định tắt; cần xác nhận cách sử dụng với nhà cung cấp trước khi bật trong môi trường vận hành. Thao tác **Xem** của website không xác nhận lượt xem, lượt click quảng cáo đối tác hay doanh thu Adsterra.
+AdSense và Google Ad Manager có cấu hình riêng. Script `adsbygoogle.js` và publisher ID không tạo vị trí quảng cáo có thưởng. Luồng miễn ship tải Google Publisher Tag (GPT) từ `https://securepubads.g.doubleclick.net/tag/js/gpt.js` khi khách chủ động chọn **Xem quảng cáo để nhận mã miễn ship**. Cần ad unit path thật do Google Ad Manager cấp; không dùng ID `ca-pub-...` hay mã quảng cáo mẫu để vận hành.
 
-Hộp lựa chọn quảng cáo cho phép đồng ý hoặc từ chối trước khi tải script. Cookie `deal-hay-advertising-consent` lưu `v1:accepted` hoặc `v1:declined` trong 180 ngày. Người dùng có thể mở lại lựa chọn qua nút **Tùy chọn cookie quảng cáo**; rút lại đồng ý tải lại trang để dừng các script đã khởi tạo. Khi quay lại một tab hoặc tài liệu được khôi phục từ lịch sử, hệ thống đối chiếu cookie và tải lại nếu lựa chọn đã đổi ở nơi khác. Chính sách tại `/privacy` giải thích dữ liệu quảng cáo và dẫn đến [chính sách bảo mật Adsterra](https://adsterra.com/privacy-policy-managed/) cùng [chính sách cookie](https://adsterra.com/cookies/).
+Lấy mã tại [Google Ad Manager](https://admanager.google.com/): **Inventory → Ad units → chọn/tạo ad unit → Tags → Google Publisher Tag**. Sao chép đường dẫn `/NETWORK_CODE/AD_UNIT_CODE` trong tag; nếu ad unit nằm trong cây phân cấp, giữ nguyên toàn bộ đường dẫn. Xem [hướng dẫn tạo tag](https://support.google.com/admanager/answer/177207?hl=en) và [cấu hình phân phối rewarded ads trên web](https://support.google.com/admanager/answer/9116812?hl=en). Tạo ad unit chưa đủ để đảm bảo có quảng cáo: cần cấu hình nguồn quảng cáo/line item phù hợp và website được chấp thuận. Trong backend, đặt:
 
-Các trang mua sắm và các trang chức năng còn lại sử dụng hai root layout riêng. Chuyển giữa hai nhóm tải lại toàn bộ tài liệu, giúp script quảng cáo kết thúc trước khi vào trang tài khoản, đăng nhập, quản trị, tin nhắn hoặc quản lý đơn hàng. Đây là cách triển khai cho vòng đời Next.js; Adsterra không có hướng dẫn SPA riêng trong các tài liệu đã đối chiếu.
+```dotenv
+SHIPPING_REWARDS_ENABLED=true
+GOOGLE_AD_MANAGER_REWARDED_AD_UNIT_PATH=/YOUR_NETWORK_CODE/YOUR_REWARDED_AD_UNIT_CODE
+```
 
-Không thể đọc trực tiếp hai trang tài khoản [Websites](https://beta.publishers.adsterra.com/websites) và [FAQ](https://beta.publishers.adsterra.com/faq) trong môi trường nghiên cứu. Trước khi vận hành, đăng nhập dashboard để xác nhận đúng tên miền đã được duyệt và cả ba ad unit ở trạng thái Active; kiểm tra lại mã bằng Get code. Theo [hướng dẫn quản lý website](https://help-publishers.adsterra.com/en/articles/5056395-managing-your-websites), ad unit không dùng quá 14 ngày có thể thành inactive và cần Resubmit. Hướng dẫn tích hợp chính thức xác nhận Adsterra không yêu cầu `ads.txt`; nếu cần khai báo người bán cho mục đích khác, lấy thông tin từ hỗ trợ thay vì tự tạo publisher ID.
+Giá trị trên chỉ minh họa cấu trúc, phải thay bằng đường dẫn được cấp. Biến được đọc từ backend; frontend không cần biến môi trường mới. Khi thiếu/sai đường dẫn hoặc chương trình bị tắt, API trả ưu đãi chưa khả dụng và giao diện vẫn cho đặt hàng bình thường. Backend giữ mặc định tắt cho đến khi có ad unit thật. Chạy migration backend trước khi deploy frontend mới.
 
-Chạy `npm run test:ads` để kiểm tra mã tích hợp, chống tải trùng, lựa chọn cookie và ranh giới trang mua sắm/tài khoản. Kiểm thử mô phỏng script và không tạo lượt xem hay click quảng cáo thật.
+Cookie `deal-hay-advertising-consent` lưu `v2:accepted` hoặc `v2:declined` trong 180 ngày. Phiên bản v1 của quảng cáo cũ được hỏi lại vì nhà cung cấp đã đổi sang Google. Khách có thể đổi lựa chọn tại **Tùy chọn cookie quảng cáo**; rút lại đồng ý tải lại trang để dừng các script đã khởi tạo. Hai root layout tách trang mua sắm khỏi đăng nhập, tài khoản, quản trị và tin nhắn, kết thúc script quảng cáo khi chuyển nhóm trang. Cookie của website không thay thế Google-certified CMP tại những khu vực Google yêu cầu CMP.
+
+Quảng cáo có thưởng chỉ phát mã khi GPT gửi `rewardedSlotGranted` cho đúng slot đã được mở. Đóng quảng cáo, phát xong video, nhấp quảng cáo hoặc chờ hết thời gian không tự phát mã. Các lỗi không có quảng cáo, trình duyệt không hỗ trợ, bị chặn hoặc quá thời gian tải đều có đường thử lại; khách vẫn có thể đặt hàng với phí vận chuyển thông thường. Nếu đã nhận sự kiện phần thưởng nhưng backend tạm lỗi, nút **Nhận lại mã miễn ship** thử lại phiên đó mà không bắt xem thêm quảng cáo.
+
+**Giới hạn xác minh:** GPT web thông báo sự kiện ở trình duyệt. Payload `rewarded_slot_granted: true` là dữ liệu từ client, có thể bị giả mạo; đây không phải callback có chữ ký hoặc xác minh server-to-server từ Google. Backend kiểm tra đăng nhập, tài khoản/sản phẩm, cấu hình ad unit của phiên, hết hạn, giới hạn tần suất, cấp mã idempotent và mã dùng một lần. Nếu cần chứng minh lượt xem độc lập với client, phải bổ sung cơ chế xác minh được Google hỗ trợ cho tài khoản trước khi coi đây là xác minh chống gian lận đầy đủ. Xem [GPT rewarded sample](https://developers.google.com/publisher-tag/samples/display-rewarded-ad).
+
+Theo [chính sách phần thưởng Google](https://support.google.com/admanager/answer/7496282?hl=en), miễn phí vận chuyển là ví dụ về phần thưởng gián tiếp được phép. Mã chỉ dùng trong Deal Hay, gắn tài khoản nhận và không chuyển nhượng. Giao diện nêu rõ phần thưởng, không yêu cầu nhấp nội dung quảng cáo và cho khách bỏ qua. Chỉ quảng cáo thuộc slot Rewarded được dùng để nhận mã; quảng cáo AdSense thông thường không được gắn với đổi thưởng. Chính sách tại `/privacy` và `/terms` đã cập nhật nhà cung cấp Google.
+
+Chạy `npm run test:ads` để kiểm tra lựa chọn cookie, script singleton, cấu hình tài khoản và vòng đời rewarded ads; các kiểm thử mô phỏng GPT và không phát sinh quảng cáo thật.
 
 ## 32. Phí vận chuyển Hà Nội
 
@@ -920,7 +931,7 @@ Khi khách chọn địa chỉ đặt hàng, frontend lấy báo phí từ backe
 
 Hộp đặt hàng có ô nhập mã sản phẩm và nút **Miễn phí vận chuyển**. Mã sản phẩm nhập phải thuộc tài khoản và sản phẩm đang đặt; mã chưa lưu được lưu qua API trước khi chọn.
 
-Khi backend bật `SHIPPING_REWARDS_ENABLED=true` và shop đã bật phí giao hàng, **Miễn phí vận chuyển** mở khu vực quảng cáo Adsterra hiện có. Native Banner được chuyển tạm vào hộp đặt hàng và trả về vị trí cũ khi đóng, giữ một container và một bộ script. Khách cần đồng ý cookie và chờ quảng cáo tải trước khi nút **Xem** khả dụng; quảng cáo trống hoặc bị chặn không mở khóa nút. Mở khu vực quảng cáo chỉ tạo phiên, chưa cấp mã. Bấm **Xem** gửi yêu cầu đổi mã đến backend; đây là thao tác ưu đãi nội bộ, không phải xác nhận hoàn tất quảng cáo từ Adsterra.
+Khi backend bật `SHIPPING_REWARDS_ENABLED=true`, cấu hình `GOOGLE_AD_MANAGER_REWARDED_AD_UNIT_PATH` hợp lệ và shop đã bật phí giao hàng, **Miễn phí vận chuyển** mở lựa chọn quảng cáo có thưởng Google. Khách đồng ý cookie, chủ động chọn xem rồi nhận mã khi GPT phát sự kiện cấp thưởng. Chỉ mở khu vực ưu đãi chưa tạo phiên hay cấp mã. Backend ghi nhà cung cấp/ad unit khi bắt đầu phiên và từ chối phiên cũ hoặc cấu hình đã thay đổi; mã đã cấp được phát lại idempotent khi thử lại yêu cầu. Xem mục 31 để cấu hình và hiểu giới hạn xác minh của GPT web.
 
 Mã giảm 100% phí ship được lưu theo tài khoản và sản phẩm, tự khôi phục khi mở lại hộp đặt hàng, mặc định hết hạn sau 7 ngày. Mã dùng một lần cho phí giao hàng Hà Nội do shop báo; phí bằng 0 hoặc chưa xác định thì giữ mã. Khách có thể bỏ chọn mã và kết hợp với mã giảm tiền hàng. Backend xác thực mã và tính tổng, chống dùng lại hoặc cấp trùng khi thử lại yêu cầu.
 

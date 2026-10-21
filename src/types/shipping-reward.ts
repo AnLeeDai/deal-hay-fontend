@@ -1,11 +1,13 @@
 export type ShippingOffer = {
   available: boolean
   unavailable_reason: string | null
+  rewarded_ad_unit_path: string | null
 }
 
 export type ShippingRewardView = {
   id: string
   expires_at: string
+  rewarded_ad_unit_path: string
 }
 
 export type ShippingDiscountCode = {

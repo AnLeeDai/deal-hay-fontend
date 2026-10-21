@@ -8,8 +8,8 @@ export const ADVERTISING_CONSENT_CHANGE_EVENT =
 export function parseAdvertisingConsent(
   value: string | undefined
 ): AdvertisingConsent | null {
-  if (value === "v1:accepted") return "accepted"
-  if (value === "v1:declined") return "declined"
+  if (value === "v2:accepted") return "accepted"
+  if (value === "v2:declined") return "declined"
   return null
 }
 
@@ -28,5 +28,5 @@ export function serializeAdvertisingConsent(
   consent: AdvertisingConsent,
   secure: boolean
 ): string {
-  return `${ADVERTISING_CONSENT_COOKIE}=v1:${consent}; Path=/; Max-Age=${ADVERTISING_CONSENT_MAX_AGE}; SameSite=Lax${secure ? "; Secure" : ""}`
+  return `${ADVERTISING_CONSENT_COOKIE}=v2:${consent}; Path=/; Max-Age=${ADVERTISING_CONSENT_MAX_AGE}; SameSite=Lax${secure ? "; Secure" : ""}`
 }

@@ -50,31 +50,31 @@ export default function PrivacyPage() {
       <section className="space-y-2">
         <h2 className="text-xl font-semibold">5. Quảng cáo</h2>
         <p>
-          Khi bạn đồng ý quảng cáo, các trang mua sắm có thể hiển thị Social
-          Bar, Popunder và Native Banner của Adsterra. Popunder có thể mở trang
-          quảng cáo trong tab hoặc cửa sổ khác khi bạn tương tác.
+          Khi bạn đồng ý cookie quảng cáo, các trang mua sắm có thể tải quảng
+          cáo của Google. Bạn có thể tự chọn xem quảng cáo có thưởng để nhận ưu
+          đãi vận chuyển theo điều kiện được hiển thị trước khi xem.
         </p>
         <p>
-          Adsterra và các đối tác quảng cáo có thể sử dụng cookie, địa chỉ IP,
+          Google và các đối tác quảng cáo có thể sử dụng cookie, địa chỉ IP,
           thông tin thiết bị, trình duyệt và hoạt động tương tác để phân phối,
           đo lường quảng cáo và phòng chống gian lận theo chính sách của họ. Xem
           thêm tại{" "}
           <a
             className="text-primary underline"
-            href="https://adsterra.com/privacy-policy-managed/"
+            href="https://policies.google.com/technologies/partner-sites"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Chính sách bảo mật của Adsterra
+            Cách Google sử dụng thông tin từ các trang web đối tác
           </a>{" "}
           và{" "}
           <a
             className="text-primary underline"
-            href="https://adsterra.com/cookies/"
+            href="https://policies.google.com/technologies/ads"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Chính sách cookie của Adsterra
+            Chính sách công nghệ quảng cáo của Google
           </a>
           .
         </p>

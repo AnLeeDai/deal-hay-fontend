@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { ADSTERRA_NATIVE_BANNER_CONTAINER_ID } from "@/config/advertising"
-import { initializeAdsterra } from "@/lib/adsterra"
+import { initializeGoogleAdsense } from "@/lib/google-adsense"
 import {
   ADVERTISING_CONSENT_CHANGE_EVENT,
   readAdvertisingConsent,
@@ -19,7 +18,6 @@ export function StorefrontAdvertising({
 }) {
   const [consent, setConsent] = useState(initialConsent)
   const [showChoices, setShowChoices] = useState(initialConsent === null)
-  const nativeContainer = useRef<HTMLDivElement>(null)
   const initialized = useRef(false)
 
   useEffect(() => {
@@ -59,8 +57,8 @@ export function StorefrontAdvertising({
     window.addEventListener(ADVERTISING_CONSENT_CHANGE_EVENT, syncInlineConsent)
     document.addEventListener("visibilitychange", syncWhenVisible)
 
-    if (syncConsent() && consent === "accepted" && nativeContainer.current) {
-      initializeAdsterra(nativeContainer.current)
+    if (syncConsent() && consent === "accepted") {
+      initializeGoogleAdsense(document)
       initialized.current = true
     }
 
@@ -109,13 +107,6 @@ export function StorefrontAdvertising({
             Tùy chọn cookie quảng cáo
           </Button>
         </div>
-        {consent === "accepted" ? (
-          <div
-            id={ADSTERRA_NATIVE_BANNER_CONTAINER_ID}
-            ref={nativeContainer}
-            className="min-h-32"
-          />
-        ) : null}
       </aside>
       {showChoices ? (
         <section
@@ -124,7 +115,7 @@ export function StorefrontAdvertising({
         >
           <p className="font-medium">Cookie quảng cáo</p>
           <p className="text-sm leading-6 text-muted-foreground">
-            Adsterra và các đối tác có thể dùng cookie, địa chỉ IP và thông tin
+            Google và các đối tác có thể dùng cookie, địa chỉ IP và thông tin
             trình duyệt để phân phối và đo lường quảng cáo. Bạn có thể thay đổi
             lựa chọn bất cứ lúc nào tại Tùy chọn cookie quảng cáo. Xem{" "}
             <a className="text-primary underline" href="/privacy">

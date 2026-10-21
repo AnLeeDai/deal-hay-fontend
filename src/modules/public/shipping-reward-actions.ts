@@ -91,6 +91,7 @@ export async function redeemShippingRewardAction(
     }>({
       method: "POST",
       path: `${shippingOfferPath(shopCode, productSlug)}/views/${encodeURIComponent(viewId)}/redeem`,
+      body: { rewarded_slot_granted: true },
       cache: "no-store",
     })
     return {

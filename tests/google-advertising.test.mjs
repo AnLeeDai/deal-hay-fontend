@@ -28,10 +28,10 @@ const configUrl = transpile("../src/config/advertising.ts")
 const config = await import(configUrl)
 const consentUrl = transpile("../src/lib/advertising-consent.ts")
 const consent = await import(consentUrl)
-const adsterraUrl = transpile("../src/lib/adsterra.ts", {
+const adsenseUrl = transpile("../src/lib/google-adsense.ts", {
   "@/config/advertising": configUrl,
 })
-const { initializeAdsterra } = await import(adsterraUrl)
+const { initializeGoogleAdsense } = await import(adsenseUrl)
 const hooksUrl = moduleUrl(`
   let slots = [], cursor = 0, effects = []
   export function reset() { slots = []; cursor = 0; effects = [] }
@@ -68,21 +68,10 @@ const { StorefrontAdvertising } = await import(
     react: hooksUrl,
     "react/jsx-runtime": import.meta.resolve("react/jsx-runtime"),
     "@/components/ui/button": moduleUrl('export const Button = "button"'),
-    "@/config/advertising": configUrl,
-    "@/lib/adsterra": adsterraUrl,
+    "@/lib/google-adsense": adsenseUrl,
     "@/lib/advertising-consent": consentUrl,
   })
 )
-const { ShippingAdvertisement } = await import(
-  transpile("../src/modules/public/components/shipping-advertisement.tsx", {
-    react: hooksUrl,
-    "react/jsx-runtime": import.meta.resolve("react/jsx-runtime"),
-    "@/components/ui/button": moduleUrl('export const Button = "button"'),
-    "@/config/advertising": configUrl,
-    "@/lib/advertising-consent": consentUrl,
-  })
-)
-
 // A small document model verifies observable insertion behavior without
 // downloading or executing live advertisements during automated tests.
 class Element {
@@ -215,14 +204,6 @@ class Document extends Events {
   }
 }
 
-function advertisingDocument() {
-  const document = new Document()
-  const nativeContainer = document.createElement("div")
-  nativeContainer.id = config.ADSTERRA_NATIVE_BANNER_CONTAINER_ID
-  document.body.appendChild(nativeContainer)
-  return { document, nativeContainer }
-}
-
 function withDocument(document, callback) {
   const previous = globalThis.document
   globalThis.document = document
@@ -280,17 +261,6 @@ function advertisingComponent(initialConsent, options = {}) {
     return inBrowser(() => {
       hooks.beginRender()
       tree = StorefrontAdvertising({ initialConsent })
-      for (const element of elements(tree)) {
-        if (element.props?.id !== config.ADSTERRA_NATIVE_BANNER_CONTAINER_ID)
-          continue
-        let container = document.getElementById(element.props.id)
-        if (!container) {
-          container = document.createElement("div")
-          container.id = element.props.id
-          document.body.appendChild(container)
-        }
-        element.props.ref.current = container
-      }
       hooks.flushEffects()
       return tree
     })
@@ -324,203 +294,51 @@ function advertisingComponent(initialConsent, options = {}) {
   }
 }
 
-function shippingAdvertisementComponent(initialConsent = "accepted") {
-  hooks.reset()
-  const { document, nativeContainer } = advertisingDocument()
-  document.cookie = initialConsent
-    ? consent.serializeAdvertisingConsent(initialConsent, true)
-    : ""
-  if (initialConsent === "accepted") initializeAdsterra(nativeContainer)
-  const originalParent = nativeContainer.parentElement
-  const sibling = document.createElement("p")
-  originalParent.insertBefore(sibling, nativeContainer.nextSibling)
-  const slot = document.createElement("div")
-  document.body.appendChild(slot)
-  const readyChanges = []
-  const timers = new Map()
-  let observer
-  const window = Object.assign(new Events(), {
-    location: { protocol: "https:" },
-    setTimeout: (callback) => {
-      const id = timers.size + 1
-      timers.set(id, callback)
-      return id
-    },
-    clearTimeout: (id) => timers.delete(id),
-  })
-  class MutationObserver {
-    constructor(callback) {
-      this.callback = callback
-      observer = this
-    }
-    observe() {
-      this.active = true
-    }
-    disconnect() {
-      this.active = false
-    }
-  }
-  let tree
-  function inBrowser(callback) {
-    const previousWindow = globalThis.window
-    const previousObserver = globalThis.MutationObserver
-    globalThis.window = window
-    globalThis.MutationObserver = MutationObserver
-    try {
-      return withDocument(document, callback)
-    } finally {
-      if (previousWindow === undefined) delete globalThis.window
-      else globalThis.window = previousWindow
-      if (previousObserver === undefined) delete globalThis.MutationObserver
-      else globalThis.MutationObserver = previousObserver
-    }
-  }
-  function render() {
-    return inBrowser(() => {
-      hooks.beginRender()
-      tree = ShippingAdvertisement({
-        onReadyChange: (value) => readyChanges.push(value),
-      })
-      const placeholder = elements(tree).find((element) => element.props?.ref)
-      placeholder.props.ref.current = slot
-      hooks.flushEffects()
-      return tree
-    })
-  }
-  render()
-  render()
-  return {
-    document,
-    nativeContainer,
-    originalParent,
-    sibling,
-    slot,
-    readyChanges,
-    get tree() {
-      return tree
-    },
-    mutate(callback) {
-      inBrowser(() => {
-        callback?.()
-        if (observer.active) observer.callback()
-      })
-      render()
-    },
-    expire() {
-      inBrowser(() => {
-        for (const callback of timers.values()) callback()
-      })
-      render()
-    },
-    click(label) {
-      const button = elements(tree).find(
-        (element) => element.type === "button" && textContent(element) === label
-      )
-      assert.ok(button, `Button is available: ${label}`)
-      inBrowser(() => button.props.onClick())
-      render()
-    },
-    listen(callback) {
-      window.addEventListener(
-        consent.ADVERTISING_CONSENT_CHANGE_EVENT,
-        callback
-      )
-    },
-    unmount() {
-      inBrowser(() => hooks.cleanupEffects())
-    },
-  }
-}
-
-test("uses exactly the three supplied script-based Adsterra placements", () => {
-  assert.deepEqual(Object.keys(config).sort(), [
-    "ADSTERRA_NATIVE_BANNER_CONTAINER_ID",
-    "ADSTERRA_NATIVE_BANNER_SCRIPT_URL",
-    "ADSTERRA_POPUNDER_SCRIPT_URL",
-    "ADSTERRA_SOCIAL_BAR_SCRIPT_URL",
-  ])
+test("uses the supplied Google publisher account and official script URLs", () => {
+  assert.equal(config.GOOGLE_ADSENSE_CLIENT, "ca-pub-7303400269186048")
   assert.equal(
-    config.ADSTERRA_SOCIAL_BAR_SCRIPT_URL,
-    "https://bauval.org/14/d1ef34f7547431dda803fb4f5849055c"
+    config.GOOGLE_ADSENSE_SCRIPT_URL,
+    "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7303400269186048"
   )
   assert.equal(
-    config.ADSTERRA_POPUNDER_SCRIPT_URL,
-    "https://abscloud.org/1/6d2d5564c18455acfe7ff77b2d908f42"
-  )
-  assert.equal(
-    config.ADSTERRA_NATIVE_BANNER_SCRIPT_URL,
-    "https://bauval.org/21/e366db0bfb6da558a13f3e75254ed7db"
-  )
-  assert.equal(
-    config.ADSTERRA_NATIVE_BANNER_CONTAINER_ID,
-    "container-e366db0bfb6da558a13f3e75254ed7db"
+    config.GOOGLE_PUBLISHER_TAG_SCRIPT_URL,
+    "https://securepubads.g.doubleclick.net/tag/js/gpt.js"
   )
 })
 
-test("initializes vendor scripts in the required locations and preserves async semantics", () => {
-  const { document, nativeContainer } = advertisingDocument()
-  withDocument(document, () => initializeAdsterra(nativeContainer))
-  assert.equal(document.scripts.length, 3)
-
-  const popunder = document.scripts.find(
-    (script) => script.src === config.ADSTERRA_POPUNDER_SCRIPT_URL
-  )
-  const social = document.scripts.find(
-    (script) => script.src === config.ADSTERRA_SOCIAL_BAR_SCRIPT_URL
-  )
-  const native = document.scripts.find(
-    (script) => script.src === config.ADSTERRA_NATIVE_BANNER_SCRIPT_URL
-  )
-  assert.ok(popunder)
-  assert.ok(social)
-  assert.ok(native)
-  assert.equal(popunder.parentNode, document.head)
-  assert.equal(social.parentNode, document.body)
-  assert.equal(native.nextSibling, nativeContainer)
-  assert.equal(
-    document.getElementById(config.ADSTERRA_NATIVE_BANNER_CONTAINER_ID),
-    nativeContainer
-  )
-  assert.equal(popunder.async, false)
-  assert.equal(social.async, false)
-  assert.equal(native.async, true)
-  for (const script of document.scripts) {
-    assert.equal(script.getAttribute("data-cfasync"), "false")
-  }
+test("initializes the supplied async AdSense script with anonymous crossorigin", () => {
+  const document = new Document()
+  initializeGoogleAdsense(document)
+  assert.equal(document.scripts.length, 1)
+  const [script] = document.scripts
+  assert.equal(script.id, "google-adsense")
+  assert.equal(script.src, config.GOOGLE_ADSENSE_SCRIPT_URL)
+  assert.equal(script.async, true)
+  assert.equal(script.crossOrigin, "anonymous")
+  assert.equal(script.parentElement, document.head)
 })
 
-test("repeated initialization preserves vendor-rendered native content and never duplicates scripts", () => {
-  const { document, nativeContainer } = advertisingDocument()
-  withDocument(document, () => {
-    initializeAdsterra(nativeContainer)
-    const scripts = [...document.scripts]
-    const creative = document.createElement("iframe")
-    nativeContainer.appendChild(creative)
+test("repeated initialization and an existing publisher snippet never duplicate AdSense", () => {
+  const document = new Document()
+  initializeGoogleAdsense(document)
+  const [script] = document.scripts
+  initializeGoogleAdsense(document)
+  initializeGoogleAdsense(document)
+  assert.deepEqual(document.scripts, [script])
 
-    // React Strict Mode and storefront SPA navigation can repeat effects.
-    initializeAdsterra(nativeContainer)
-    initializeAdsterra(nativeContainer)
-
-    assert.deepEqual(document.scripts, scripts)
-    assert.deepEqual(nativeContainer.children, [creative])
-  })
+  const existingDocument = new Document()
+  const existingScript = existingDocument.createElement("script")
+  existingScript.src = config.GOOGLE_ADSENSE_SCRIPT_URL
+  existingDocument.head.appendChild(existingScript)
+  initializeGoogleAdsense(existingDocument)
+  assert.deepEqual(existingDocument.scripts, [existingScript])
 })
 
-test("a fresh browser document loads its own ad placements", () => {
+test("a fresh storefront document initializes its own publisher script", () => {
   for (let index = 0; index < 2; index += 1) {
-    const { document, nativeContainer } = advertisingDocument()
-    withDocument(document, () => initializeAdsterra(nativeContainer))
-    assert.equal(document.scripts.length, 3)
-  }
-})
-
-test("a detached or mismatched native placement cannot start document-wide advertising", () => {
-  for (const invalid of ["detached", "wrong-id"]) {
-    const { document, nativeContainer } = advertisingDocument()
-    if (invalid === "detached") nativeContainer.remove()
-    else nativeContainer.id = "another-ad-placement"
-    withDocument(document, () => initializeAdsterra(nativeContainer))
-    assert.equal(document.scripts.length, 0, invalid)
+    const document = new Document()
+    initializeGoogleAdsense(document)
+    assert.equal(document.scripts.length, 1)
   }
 })
 
@@ -530,18 +348,20 @@ test("only current explicit consent values authorize advertising", () => {
     "deal-hay-advertising-consent"
   )
   assert.equal(consent.ADVERTISING_CONSENT_MAX_AGE, 15_552_000)
-  assert.equal(consent.parseAdvertisingConsent("v1:accepted"), "accepted")
-  assert.equal(consent.parseAdvertisingConsent("v1:declined"), "declined")
+  assert.equal(consent.parseAdvertisingConsent("v2:accepted"), "accepted")
+  assert.equal(consent.parseAdvertisingConsent("v2:declined"), "declined")
   for (const value of [
     undefined,
     "",
     "accepted",
     "true",
     "v0:accepted",
-    "v2:accepted",
-    "v1:Accepted",
-    "v1:accepted ",
-    "v1:accepted; extra=1",
+    "v1:accepted",
+    "v1:declined",
+    "v3:accepted",
+    "v2:Accepted",
+    "v2:accepted ",
+    "v2:accepted; extra=1",
   ]) {
     assert.equal(consent.parseAdvertisingConsent(value), null, String(value))
   }
@@ -552,7 +372,7 @@ test("consent cookies persist the selected choice across routes with appropriate
     const secure = consent.serializeAdvertisingConsent(value, true)
     assert.match(
       secure,
-      new RegExp(`^${consent.ADVERTISING_CONSENT_COOKIE}=v1:${value}(?:;|$)`)
+      new RegExp(`^${consent.ADVERTISING_CONSENT_COOKIE}=v2:${value}(?:;|$)`)
     )
     assert.match(secure, /(?:^|;)\s*Path=\//i)
     assert.match(secure, /(?:^|;)\s*Max-Age=15552000(?:;|$)/i)
@@ -569,18 +389,18 @@ test("reads only the advertising cookie from the current document cookie header"
   const name = consent.ADVERTISING_CONSENT_COOKIE
   assert.equal(
     consent.readAdvertisingConsent(
-      `session=abc; ${name}=v1:accepted; theme=dark`
+      `session=abc; ${name}=v2:accepted; theme=dark`
     ),
     "accepted"
   )
   assert.equal(
-    consent.readAdvertisingConsent(`${name}=v1:declined`),
+    consent.readAdvertisingConsent(`${name}=v2:declined`),
     "declined"
   )
   for (const cookie of [
     "",
-    "session=v1:accepted",
-    `${name}-other=v1:accepted`,
+    "session=v2:accepted",
+    `${name}-other=v2:accepted`,
     `${name}=v0:accepted`,
     `${name}=garbage`,
   ]) {
@@ -592,12 +412,6 @@ test("no provider scripts execute before consent or after an initial refusal", (
   for (const initial of [null, "declined"]) {
     const component = advertisingComponent(initial)
     assert.equal(component.document.scripts.length, 0, String(initial))
-    assert.equal(
-      component.document.getElementById(
-        config.ADSTERRA_NATIVE_BANNER_CONTAINER_ID
-      ),
-      null
-    )
     assert.equal(
       elements(component.tree).filter((element) => element.type === "script")
         .length,
@@ -611,7 +425,7 @@ test("no provider scripts execute before consent or after an initial refusal", (
 test("accepting cookie advertising loads scripts once and persists the decision", () => {
   const component = advertisingComponent(null)
   component.click("Đồng ý cookie quảng cáo")
-  assert.equal(component.document.scripts.length, 3)
+  assert.equal(component.document.scripts.length, 1)
   assert.equal(
     component.document.cookie,
     consent.serializeAdvertisingConsent("accepted", true)
@@ -619,11 +433,11 @@ test("accepting cookie advertising loads scripts once and persists the decision"
   component.render()
   component.click("Tùy chọn cookie quảng cáo")
   component.click("Đồng ý cookie quảng cáo")
-  assert.equal(component.document.scripts.length, 3)
+  assert.equal(component.document.scripts.length, 1)
   assert.equal(component.reloads, 0)
 })
 
-test("accepting advertising cookies inside the shipping panel synchronizes the existing storefront without a reload", () => {
+test("accepting advertising cookies from another storefront component synchronizes the existing storefront without a reload", () => {
   const component = advertisingComponent(null)
   component.document.cookie = consent.serializeAdvertisingConsent(
     "accepted",
@@ -631,136 +445,17 @@ test("accepting advertising cookies inside the shipping panel synchronizes the e
   )
   component.dispatch(consent.ADVERTISING_CONSENT_CHANGE_EVENT)
   component.render()
-  assert.equal(component.document.scripts.length, 3)
+  assert.equal(component.document.scripts.length, 1)
   assert.equal(component.reloads, 0)
   assert.ok(!textContent(component.tree).includes("Đồng ý cookie quảng cáo"))
   component.dispatch(consent.ADVERTISING_CONSENT_CHANGE_EVENT)
   component.render()
-  assert.equal(component.document.scripts.length, 3)
-})
-
-test("the shipping panel borrows and restores the existing singleton banner without adding scripts", () => {
-  const component = shippingAdvertisementComponent()
-  const scripts = [...component.document.scripts]
-  assert.equal(component.nativeContainer.parentElement, component.slot)
-  assert.deepEqual(component.readyChanges, [false])
-  component.mutate(() => {
-    const script = component.document.createElement("script")
-    component.nativeContainer.appendChild(script)
-  })
-  assert.deepEqual(
-    component.readyChanges,
-    [false],
-    "a script alone is not a rendered creative"
-  )
-  component.mutate(() => {
-    const creative = component.document.createElement("iframe")
-    creative.src = "https://ads.example/creative"
-    component.nativeContainer.appendChild(creative)
-  })
-  assert.deepEqual(component.readyChanges, [false, true])
-  assert.deepEqual(
-    component.document.scripts.filter((script) => script.src),
-    scripts
-  )
-  component.unmount()
-  assert.equal(
-    component.nativeContainer.parentElement,
-    component.originalParent
-  )
-  assert.equal(component.nativeContainer.nextSibling, component.sibling)
-  assert.deepEqual(component.readyChanges, [false, true, false])
-  assert.equal(
-    component.document.getElementById(
-      config.ADSTERRA_NATIVE_BANNER_CONTAINER_ID
-    ),
-    component.nativeContainer
-  )
-})
-
-test("unknown or declined advertising consent keeps the native banner outside the shipping panel", () => {
-  for (const initialConsent of [null, "declined"]) {
-    const component = shippingAdvertisementComponent(initialConsent)
-    assert.equal(
-      component.nativeContainer.parentElement,
-      component.originalParent
-    )
-    assert.equal(component.document.scripts.length, 0)
-    assert.deepEqual(component.readyChanges, [false])
-    let changed = false
-    component.listen(() => {
-      changed = true
-    })
-    component.click("Chỉ dùng cookie cần thiết")
-    assert.equal(changed, true)
-    assert.equal(
-      consent.readAdvertisingConsent(component.document.cookie),
-      "declined"
-    )
-    assert.equal(component.document.scripts.length, 0)
-    component.unmount()
-  }
-})
-
-test("the shipping cookie choice persists consent and borrows the existing placement without initializing advertising", () => {
-  const component = shippingAdvertisementComponent(null)
-  component.click("Đồng ý cookie quảng cáo")
-  assert.equal(
-    consent.readAdvertisingConsent(component.document.cookie),
-    "accepted"
-  )
-  assert.equal(
-    component.nativeContainer.parentElement,
-    component.originalParent,
-    "the banner stays with the storefront until its native script is installed"
-  )
-  assert.equal(
-    component.document.scripts.length,
-    0,
-    "only the storefront may initialize provider scripts"
-  )
-  component.mutate(() => initializeAdsterra(component.nativeContainer))
-  assert.equal(component.nativeContainer.parentElement, component.slot)
-  assert.equal(
-    component.document.getElementById("adsterra-native-banner").parentElement,
-    component.originalParent,
-    "the provider script remains outside the temporary shipping slot"
-  )
-  assert.deepEqual(component.readyChanges, [false])
-  component.expire()
-  assert.match(textContent(component.tree), /Quảng cáo hiện chưa khả dụng/)
-  assert.deepEqual(component.readyChanges, [false])
-  component.unmount()
-  assert.equal(component.document.scripts.length, 3)
-})
-
-test("removing a creative or withdrawing consent disables shipping readiness and restores the banner", () => {
-  const component = shippingAdvertisementComponent()
-  let creative
-  component.mutate(() => {
-    creative = component.document.createElement("img")
-    creative.src = "https://ads.example/banner.png"
-    component.nativeContainer.appendChild(creative)
-  })
-  component.mutate(() => creative.remove())
-  assert.deepEqual(component.readyChanges, [false, true, false])
-  component.mutate(() => {
-    component.document.cookie = consent.serializeAdvertisingConsent(
-      "declined",
-      true
-    )
-  })
-  assert.equal(
-    component.nativeContainer.parentElement,
-    component.originalParent
-  )
-  assert.match(textContent(component.tree), /Đồng ý cookie quảng cáo/)
-  component.unmount()
+  assert.equal(component.document.scripts.length, 1)
 })
 
 test("withdrawing consent reloads the document to stop previously installed provider listeners", () => {
   const component = advertisingComponent("accepted")
-  assert.equal(component.document.scripts.length, 3)
+  assert.equal(component.document.scripts.length, 1)
   component.click("Tùy chọn cookie quảng cáo")
   component.click("Chỉ dùng cookie cần thiết")
   assert.equal(
@@ -783,7 +478,7 @@ test("stale server consent cannot initialize scripts after the browser cookie wa
 for (const event of ["focus", "visibilitychange", "pageshow"]) {
   test(`a ${event} event applies consent revoked in another document before continuing advertising`, () => {
     const component = advertisingComponent("accepted")
-    assert.equal(component.document.scripts.length, 3)
+    assert.equal(component.document.scripts.length, 1)
     const scripts = [...component.document.scripts]
     component.document.cookie = consent.serializeAdvertisingConsent(
       "declined",
@@ -855,9 +550,9 @@ test("private routes use a separate document root so loaded provider code cannot
   assert.match(storefront, /StorefrontAdvertising/)
   assert.doesNotMatch(
     application,
-    /StorefrontAdvertising|initializeAdsterra|adsterra/i
+    /StorefrontAdvertising|initializeGoogleAdsense|google-adsense|gpt\.js/i
   )
-  assert.doesNotMatch(document, /StorefrontAdvertising|initializeAdsterra/)
+  assert.doesNotMatch(document, /StorefrontAdvertising|initializeGoogleAdsense/)
   assert.ok(exists("../src/app/(storefront)/page.tsx"))
   assert.ok(exists("../src/app/(storefront)/shops/[shopUserCode]/page.tsx"))
   assert.ok(
@@ -884,29 +579,37 @@ test("private routes use a separate document root so loaded provider code cannot
   assert.ok(exists("../src/app/global-not-found.tsx"))
 })
 
-test("removes the previous advertising providers and reward launch flow", () => {
+test("publishes the supplied ads.txt authorization and account metadata", () => {
+  assert.equal(
+    read("../public/ads.txt"),
+    "google.com, pub-7303400269186048, DIRECT, f08c47fec0942fa0\n"
+  )
+  const document = read("../src/components/layout/site-document.tsx")
+  assert.match(document, /"google-adsense-account": GOOGLE_ADSENSE_CLIENT/)
+  assert.equal(exists("../src/lib/adsterra.ts"), false)
   for (const path of [
     "../src/config/advertising.ts",
     "../src/components/storefront-advertising.tsx",
-    "../src/components/layout/site-document.tsx",
     "../src/app/(application)/privacy/page.tsx",
     "../src/app/(application)/terms/page.tsx",
   ]) {
     assert.doesNotMatch(
       read(path),
-      /adsense|googlesyndication|google-adsense-account|pub-8299349376566920|adgem/i,
+      /adsterra|bauval\.org|abscloud\.org|pub-8299349376566920/i,
       path
     )
   }
-  assert.equal(exists("../public/ads.txt"), false)
-  assert.equal(
-    exists("../src/modules/public/components/rewarded-tasks.tsx"),
-    false
-  )
-  assert.equal(exists("../src/modules/public/rewarded-task-actions.ts"), false)
-  assert.equal(exists("../src/types/rewarded-task.ts"), false)
-  assert.doesNotMatch(
-    read("../src/modules/public/components/product-order-dialog.tsx"),
-    /RewardedTasks|receiveRewardedCodes/
-  )
+})
+
+test("the AdSense publisher script never creates or grants rewarded shipping ads", () => {
+  for (const path of [
+    "../src/lib/google-adsense.ts",
+    "../src/components/storefront-advertising.tsx",
+  ]) {
+    assert.doesNotMatch(
+      read(path),
+      /adsbygoogle\.push|googletag|rewardedSlotGranted|completeShippingReward/,
+      path
+    )
+  }
 })

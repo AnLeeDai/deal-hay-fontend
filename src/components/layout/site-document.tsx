@@ -8,6 +8,7 @@ import { RealtimeRoot } from "@/components/realtime-root"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { GOOGLE_ADSENSE_CLIENT } from "@/config/advertising"
 import { cn } from "@/lib/utils"
 
 const inter = Inter({
@@ -23,6 +24,9 @@ export const siteMetadata: Metadata = {
   },
   description:
     "Khám phá sản phẩm, kết nối trực tiếp với cửa hàng uy tín và săn những deal hay mỗi ngày.",
+  other: {
+    "google-adsense-account": GOOGLE_ADSENSE_CLIENT,
+  },
 }
 
 export function SiteDocument({

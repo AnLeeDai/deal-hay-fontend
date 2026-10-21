@@ -76,7 +76,11 @@ test.beforeEach(() => {
 
 test("opening a shipping offer reads eligibility without creating a view or claiming a code", async () => {
   state.response = {
-    shipping_offer: { available: true, unavailable_reason: null },
+    shipping_offer: {
+      available: true,
+      unavailable_reason: null,
+      rewarded_ad_unit_path: "/123456789/free_shipping",
+    },
   }
   const result = await loadShippingOfferAction("SHOP /1", "áo/thun?x=1")
   assert.deepEqual(result, {
@@ -94,9 +98,17 @@ test("opening a shipping offer reads eligibility without creating a view or clai
 })
 
 test("unavailable shipping offers preserve the server reason", async () => {
-  for (const reason of ["promotion_disabled", "shipping_not_configured"]) {
+  for (const reason of [
+    "promotion_disabled",
+    "shipping_not_configured",
+    "rewarded_ads_not_configured",
+  ]) {
     state.response = {
-      shipping_offer: { available: false, unavailable_reason: reason },
+      shipping_offer: {
+        available: false,
+        unavailable_reason: reason,
+        rewarded_ad_unit_path: null,
+      },
     }
     const result = await loadShippingOfferAction("SHOP-1", "ao-thun")
     assert.equal(result.success, true)
@@ -107,7 +119,11 @@ test("unavailable shipping offers preserve the server reason", async () => {
 })
 
 test("starting a shipping reward returns only the server view, then redemption returns the real code", async () => {
-  const view = { id: "view /?id", expires_at: "2026-10-21T09:10:00Z" }
+  const view = {
+    id: "view /?id",
+    expires_at: "2026-10-21T09:10:00Z",
+    rewarded_ad_unit_path: "/123456789/free_shipping",
+  }
   state.response = { view }
   const started = await startShippingRewardViewAction("SHOP /1", "áo/thun?x=1")
   assert.deepEqual(started, { success: true, message: "", data: view })
@@ -135,9 +151,10 @@ test("starting a shipping reward returns only the server view, then redemption r
   assert.deepEqual(state.calls[1], {
     method: "POST",
     path: `${productPath}/shipping-offer/views/view%20%2F%3Fid/redeem`,
+    body: { rewarded_slot_granted: true },
     cache: "no-store",
   })
-  assert.ok(state.calls.every((call) => call.body === undefined))
+  assert.equal(state.calls[0].body, undefined)
 })
 
 test("persisted code lookup reads the product-specific server code and preserves no-code null", async () => {
