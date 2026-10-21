@@ -35,6 +35,8 @@ export async function orderProductAction(
     data?: {
       order_number: string
       total: number
+      shipping_fee?: number
+      shipping_total?: number
       redeemed_discount_codes?: string[]
     }
   }
@@ -52,6 +54,8 @@ export async function orderProductAction(
       order: {
         order_number: string
         total: number
+        shipping_fee?: number
+        shipping_total?: number
         redeemed_discount_codes?: string[]
       }
     }>({

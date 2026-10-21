@@ -2,6 +2,8 @@ export type AdvertisingConsent = "accepted" | "declined"
 
 export const ADVERTISING_CONSENT_COOKIE = "deal-hay-advertising-consent"
 export const ADVERTISING_CONSENT_MAX_AGE = 60 * 60 * 24 * 180
+export const ADVERTISING_CONSENT_CHANGE_EVENT =
+  "deal-hay:advertising-consent-change"
 
 export function parseAdvertisingConsent(
   value: string | undefined

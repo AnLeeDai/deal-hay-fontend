@@ -20,6 +20,14 @@ export const checkoutSchema = z.object({
     .max(500),
   shipping_province_code: z.string().min(1, "Vui lòng chọn tỉnh thành."),
   shipping_ward_code: z.string().min(1, "Vui lòng chọn phường xã."),
+  quoted_shipping_fee: z.number().int().min(0).max(999999999).optional(),
+  shipping_discount_code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .min(1, "Mã miễn phí vận chuyển không hợp lệ.")
+    .max(32, "Mã miễn phí vận chuyển không hợp lệ.")
+    .optional(),
   quantity: z.number().int().min(1).max(9999),
   note: z.string().max(2000),
 })

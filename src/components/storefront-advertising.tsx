@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ADSTERRA_NATIVE_BANNER_CONTAINER_ID } from "@/config/advertising"
 import { initializeAdsterra } from "@/lib/adsterra"
 import {
+  ADVERTISING_CONSENT_CHANGE_EVENT,
   readAdvertisingConsent,
   serializeAdvertisingConsent,
   type AdvertisingConsent,
@@ -39,9 +40,23 @@ export function StorefrontAdvertising({
     function syncWhenVisible() {
       if (document.visibilityState === "visible") syncConsent()
     }
+    function syncInlineConsent() {
+      const choice = readAdvertisingConsent(document.cookie)
+      if (choice === null) return
+      if (choice === "declined" && initialized.current) {
+        if (!reloading) {
+          reloading = true
+          window.location.reload()
+        }
+        return
+      }
+      setConsent(choice)
+      setShowChoices(false)
+    }
 
     window.addEventListener("focus", syncConsent)
     window.addEventListener("pageshow", syncConsent)
+    window.addEventListener(ADVERTISING_CONSENT_CHANGE_EVENT, syncInlineConsent)
     document.addEventListener("visibilitychange", syncWhenVisible)
 
     if (syncConsent() && consent === "accepted" && nativeContainer.current) {
@@ -52,6 +67,10 @@ export function StorefrontAdvertising({
     return () => {
       window.removeEventListener("focus", syncConsent)
       window.removeEventListener("pageshow", syncConsent)
+      window.removeEventListener(
+        ADVERTISING_CONSENT_CHANGE_EVENT,
+        syncInlineConsent
+      )
       document.removeEventListener("visibilitychange", syncWhenVisible)
     }
   }, [consent])
@@ -68,6 +87,7 @@ export function StorefrontAdvertising({
     }
     setConsent(choice)
     setShowChoices(false)
+    window.dispatchEvent(new Event(ADVERTISING_CONSENT_CHANGE_EVENT))
   }
 
   return (

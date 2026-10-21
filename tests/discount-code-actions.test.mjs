@@ -112,12 +112,16 @@ test("checkout passes the selected server code and idempotency key without clien
     shipping_address: "12 Phố Huế",
     shipping_province_code: "1",
     shipping_ward_code: "70",
+    quoted_shipping_fee: 15000,
     quantity: 1,
     note: "",
     discount_code: reward.code,
     advertisement_view_id: "obsolete-view-id",
     total: 1,
     discount_amount: 99999,
+    shipping_fee: 1,
+    shipping_discount_amount: 99999,
+    shipping_total: 0,
   }
   const result = await actions.orderProductAction(
     "SHOP-1",
@@ -128,10 +132,147 @@ test("checkout passes the selected server code and idempotency key without clien
   assert.equal(result.success, true)
   assert.equal(state.calls[0].headers["Idempotency-Key"], "request-id")
   assert.equal(state.calls[0].body.discount_code, reward.code)
+  assert.equal(state.calls[0].body.quoted_shipping_fee, 15000)
   assert.equal(state.calls[0].body.total, undefined)
   assert.equal(state.calls[0].body.discount_amount, undefined)
+  assert.equal(state.calls[0].body.shipping_fee, undefined)
+  assert.equal(state.calls[0].body.shipping_discount_amount, undefined)
+  assert.equal(state.calls[0].body.shipping_total, undefined)
   assert.equal("advertisement_view_id" in state.calls[0].body, false)
   assert.ok(state.revalidated.includes("/discount-codes"))
+})
+
+test("checkout rejects negative, fractional and overflowing shipping quotes before requesting an order", async () => {
+  for (const quoted_shipping_fee of [
+    -1,
+    0.5,
+    4294967296,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+  ]) {
+    const result = await actions.orderProductAction(
+      "SHOP-1",
+      "ao-thun",
+      {
+        customer_name: "Nguyễn A",
+        customer_phone: "0901234567",
+        shipping_address: "12 Phố Huế",
+        shipping_province_code: "1",
+        shipping_ward_code: "70",
+        quoted_shipping_fee,
+        quantity: 1,
+        note: "",
+      },
+      "invalid-shipping-quote"
+    )
+    assert.equal(result.success, false)
+    assert.ok(result.errors.quoted_shipping_fee)
+  }
+  assert.deepEqual(state.calls, [])
+  assert.deepEqual(state.revalidated, [])
+})
+
+test("checkout forwards only the validated shipping code with the order idempotency key", async () => {
+  state.response = {
+    message: "Đặt hàng thành công.",
+    order: { order_number: "DH-SHIPPING-CODE", total: 80000 },
+  }
+  const result = await actions.orderProductAction(
+    "SHOP /1",
+    "áo/thun?x=1",
+    {
+      customer_name: "Nguyễn A",
+      customer_phone: "0901234567",
+      shipping_address: "12 Phố Huế",
+      shipping_province_code: "1",
+      shipping_ward_code: "70",
+      quoted_shipping_fee: 15000,
+      quantity: 1,
+      note: "",
+      shipping_discount_code: "  ship-real-code  ",
+      shipping_discount_amount: 99999,
+      shipping_total: 0,
+      shipping_reward_view_id: "client-view",
+    },
+    "shipping-code-request"
+  )
+  assert.equal(result.success, true)
+  assert.equal(
+    state.calls[0].path,
+    "/shops/SHOP%20%2F1/products/%C3%A1o%2Fthun%3Fx%3D1/orders"
+  )
+  assert.equal(
+    state.calls[0].headers["Idempotency-Key"],
+    "shipping-code-request"
+  )
+  assert.equal(state.calls[0].body.shipping_discount_code, "SHIP-REAL-CODE")
+  assert.equal(state.calls[0].body.quoted_shipping_fee, 15000)
+  assert.equal("shipping_discount_amount" in state.calls[0].body, false)
+  assert.equal("shipping_total" in state.calls[0].body, false)
+  assert.equal("shipping_reward_view_id" in state.calls[0].body, false)
+})
+
+test("checkout rejects blank, oversized and non-string shipping codes before requesting an order", async () => {
+  for (const shipping_discount_code of [
+    "",
+    "   ",
+    "S".repeat(33),
+    "ß".repeat(17),
+    null,
+    123,
+    ["SHIP-CODE"],
+    { code: "SHIP-CODE" },
+  ]) {
+    const result = await actions.orderProductAction(
+      "SHOP-1",
+      "ao-thun",
+      {
+        customer_name: "Nguyễn A",
+        customer_phone: "0901234567",
+        shipping_address: "12 Phố Huế",
+        shipping_province_code: "1",
+        shipping_ward_code: "70",
+        quantity: 1,
+        note: "",
+        shipping_discount_code,
+      },
+      "invalid-shipping-code"
+    )
+    assert.equal(result.success, false)
+    assert.ok(result.errors.shipping_discount_code)
+  }
+  assert.deepEqual(state.calls, [])
+  assert.deepEqual(state.revalidated, [])
+})
+
+test("checkout preserves a confirmed zero shipping quote and server billing totals", async () => {
+  state.response = {
+    message: "Đặt hàng thành công.",
+    order: {
+      order_number: "DH-ZERO-SHIPPING",
+      total: 80000,
+      shipping_fee: 0,
+      shipping_total: 0,
+    },
+  }
+  const result = await actions.orderProductAction(
+    "SHOP-1",
+    "ao-thun",
+    {
+      customer_name: "Nguyễn A",
+      customer_phone: "0901234567",
+      shipping_address: "12 Phố Huế",
+      shipping_province_code: "1",
+      shipping_ward_code: "70",
+      quoted_shipping_fee: 0,
+      quantity: 1,
+      note: "",
+    },
+    "zero-shipping-order"
+  )
+  assert.equal(result.success, true)
+  assert.equal(state.calls[0].body.quoted_shipping_fee, 0)
+  assert.deepEqual(result.data, state.response.order)
 })
 
 test("checkout forwards accumulated codes and preserves a server-confirmed zero total", async () => {

@@ -60,6 +60,7 @@ const hooksUrl = moduleUrl(`
       })
     }
   }
+  export const useLayoutEffect = useEffect
 `)
 const hooks = await import(hooksUrl)
 const { StorefrontAdvertising } = await import(
@@ -69,6 +70,15 @@ const { StorefrontAdvertising } = await import(
     "@/components/ui/button": moduleUrl('export const Button = "button"'),
     "@/config/advertising": configUrl,
     "@/lib/adsterra": adsterraUrl,
+    "@/lib/advertising-consent": consentUrl,
+  })
+)
+const { ShippingAdvertisement } = await import(
+  transpile("../src/modules/public/components/shipping-advertisement.tsx", {
+    react: hooksUrl,
+    "react/jsx-runtime": import.meta.resolve("react/jsx-runtime"),
+    "@/components/ui/button": moduleUrl('export const Button = "button"'),
+    "@/config/advertising": configUrl,
     "@/lib/advertising-consent": consentUrl,
   })
 )
@@ -144,6 +154,19 @@ class Element {
     const siblings = this.parentNode.children
     siblings.splice(siblings.indexOf(this), 1)
     this.parentNode = null
+  }
+
+  querySelector() {
+    return (
+      this.ownerDocument
+        .elements(this)
+        .slice(1)
+        .find((element) =>
+          element.tagName === "IFRAME" || element.tagName === "IMG"
+            ? Boolean(element.getAttribute("src"))
+            : element.tagName === "A" && Boolean(element.getAttribute("href"))
+        ) || null
+    )
   }
 }
 
@@ -297,6 +320,114 @@ function advertisingComponent(initialConsent, options = {}) {
       assert.ok(button, `Button is available: ${label}`)
       inBrowser(() => button.props.onClick())
       render()
+    },
+  }
+}
+
+function shippingAdvertisementComponent(initialConsent = "accepted") {
+  hooks.reset()
+  const { document, nativeContainer } = advertisingDocument()
+  document.cookie = initialConsent
+    ? consent.serializeAdvertisingConsent(initialConsent, true)
+    : ""
+  if (initialConsent === "accepted") initializeAdsterra(nativeContainer)
+  const originalParent = nativeContainer.parentElement
+  const sibling = document.createElement("p")
+  originalParent.insertBefore(sibling, nativeContainer.nextSibling)
+  const slot = document.createElement("div")
+  document.body.appendChild(slot)
+  const readyChanges = []
+  const timers = new Map()
+  let observer
+  const window = Object.assign(new Events(), {
+    location: { protocol: "https:" },
+    setTimeout: (callback) => {
+      const id = timers.size + 1
+      timers.set(id, callback)
+      return id
+    },
+    clearTimeout: (id) => timers.delete(id),
+  })
+  class MutationObserver {
+    constructor(callback) {
+      this.callback = callback
+      observer = this
+    }
+    observe() {
+      this.active = true
+    }
+    disconnect() {
+      this.active = false
+    }
+  }
+  let tree
+  function inBrowser(callback) {
+    const previousWindow = globalThis.window
+    const previousObserver = globalThis.MutationObserver
+    globalThis.window = window
+    globalThis.MutationObserver = MutationObserver
+    try {
+      return withDocument(document, callback)
+    } finally {
+      if (previousWindow === undefined) delete globalThis.window
+      else globalThis.window = previousWindow
+      if (previousObserver === undefined) delete globalThis.MutationObserver
+      else globalThis.MutationObserver = previousObserver
+    }
+  }
+  function render() {
+    return inBrowser(() => {
+      hooks.beginRender()
+      tree = ShippingAdvertisement({
+        onReadyChange: (value) => readyChanges.push(value),
+      })
+      const placeholder = elements(tree).find((element) => element.props?.ref)
+      placeholder.props.ref.current = slot
+      hooks.flushEffects()
+      return tree
+    })
+  }
+  render()
+  render()
+  return {
+    document,
+    nativeContainer,
+    originalParent,
+    sibling,
+    slot,
+    readyChanges,
+    get tree() {
+      return tree
+    },
+    mutate(callback) {
+      inBrowser(() => {
+        callback?.()
+        if (observer.active) observer.callback()
+      })
+      render()
+    },
+    expire() {
+      inBrowser(() => {
+        for (const callback of timers.values()) callback()
+      })
+      render()
+    },
+    click(label) {
+      const button = elements(tree).find(
+        (element) => element.type === "button" && textContent(element) === label
+      )
+      assert.ok(button, `Button is available: ${label}`)
+      inBrowser(() => button.props.onClick())
+      render()
+    },
+    listen(callback) {
+      window.addEventListener(
+        consent.ADVERTISING_CONSENT_CHANGE_EVENT,
+        callback
+      )
+    },
+    unmount() {
+      inBrowser(() => hooks.cleanupEffects())
     },
   }
 }
@@ -490,6 +621,141 @@ test("accepting cookie advertising loads scripts once and persists the decision"
   component.click("Đồng ý cookie quảng cáo")
   assert.equal(component.document.scripts.length, 3)
   assert.equal(component.reloads, 0)
+})
+
+test("accepting advertising cookies inside the shipping panel synchronizes the existing storefront without a reload", () => {
+  const component = advertisingComponent(null)
+  component.document.cookie = consent.serializeAdvertisingConsent(
+    "accepted",
+    true
+  )
+  component.dispatch(consent.ADVERTISING_CONSENT_CHANGE_EVENT)
+  component.render()
+  assert.equal(component.document.scripts.length, 3)
+  assert.equal(component.reloads, 0)
+  assert.ok(!textContent(component.tree).includes("Đồng ý cookie quảng cáo"))
+  component.dispatch(consent.ADVERTISING_CONSENT_CHANGE_EVENT)
+  component.render()
+  assert.equal(component.document.scripts.length, 3)
+})
+
+test("the shipping panel borrows and restores the existing singleton banner without adding scripts", () => {
+  const component = shippingAdvertisementComponent()
+  const scripts = [...component.document.scripts]
+  assert.equal(component.nativeContainer.parentElement, component.slot)
+  assert.deepEqual(component.readyChanges, [false])
+  component.mutate(() => {
+    const script = component.document.createElement("script")
+    component.nativeContainer.appendChild(script)
+  })
+  assert.deepEqual(
+    component.readyChanges,
+    [false],
+    "a script alone is not a rendered creative"
+  )
+  component.mutate(() => {
+    const creative = component.document.createElement("iframe")
+    creative.src = "https://ads.example/creative"
+    component.nativeContainer.appendChild(creative)
+  })
+  assert.deepEqual(component.readyChanges, [false, true])
+  assert.deepEqual(
+    component.document.scripts.filter((script) => script.src),
+    scripts
+  )
+  component.unmount()
+  assert.equal(
+    component.nativeContainer.parentElement,
+    component.originalParent
+  )
+  assert.equal(component.nativeContainer.nextSibling, component.sibling)
+  assert.deepEqual(component.readyChanges, [false, true, false])
+  assert.equal(
+    component.document.getElementById(
+      config.ADSTERRA_NATIVE_BANNER_CONTAINER_ID
+    ),
+    component.nativeContainer
+  )
+})
+
+test("unknown or declined advertising consent keeps the native banner outside the shipping panel", () => {
+  for (const initialConsent of [null, "declined"]) {
+    const component = shippingAdvertisementComponent(initialConsent)
+    assert.equal(
+      component.nativeContainer.parentElement,
+      component.originalParent
+    )
+    assert.equal(component.document.scripts.length, 0)
+    assert.deepEqual(component.readyChanges, [false])
+    let changed = false
+    component.listen(() => {
+      changed = true
+    })
+    component.click("Chỉ dùng cookie cần thiết")
+    assert.equal(changed, true)
+    assert.equal(
+      consent.readAdvertisingConsent(component.document.cookie),
+      "declined"
+    )
+    assert.equal(component.document.scripts.length, 0)
+    component.unmount()
+  }
+})
+
+test("the shipping cookie choice persists consent and borrows the existing placement without initializing advertising", () => {
+  const component = shippingAdvertisementComponent(null)
+  component.click("Đồng ý cookie quảng cáo")
+  assert.equal(
+    consent.readAdvertisingConsent(component.document.cookie),
+    "accepted"
+  )
+  assert.equal(
+    component.nativeContainer.parentElement,
+    component.originalParent,
+    "the banner stays with the storefront until its native script is installed"
+  )
+  assert.equal(
+    component.document.scripts.length,
+    0,
+    "only the storefront may initialize provider scripts"
+  )
+  component.mutate(() => initializeAdsterra(component.nativeContainer))
+  assert.equal(component.nativeContainer.parentElement, component.slot)
+  assert.equal(
+    component.document.getElementById("adsterra-native-banner").parentElement,
+    component.originalParent,
+    "the provider script remains outside the temporary shipping slot"
+  )
+  assert.deepEqual(component.readyChanges, [false])
+  component.expire()
+  assert.match(textContent(component.tree), /Quảng cáo hiện chưa khả dụng/)
+  assert.deepEqual(component.readyChanges, [false])
+  component.unmount()
+  assert.equal(component.document.scripts.length, 3)
+})
+
+test("removing a creative or withdrawing consent disables shipping readiness and restores the banner", () => {
+  const component = shippingAdvertisementComponent()
+  let creative
+  component.mutate(() => {
+    creative = component.document.createElement("img")
+    creative.src = "https://ads.example/banner.png"
+    component.nativeContainer.appendChild(creative)
+  })
+  component.mutate(() => creative.remove())
+  assert.deepEqual(component.readyChanges, [false, true, false])
+  component.mutate(() => {
+    component.document.cookie = consent.serializeAdvertisingConsent(
+      "declined",
+      true
+    )
+  })
+  assert.equal(
+    component.nativeContainer.parentElement,
+    component.originalParent
+  )
+  assert.match(textContent(component.tree), /Đồng ý cookie quảng cáo/)
+  component.unmount()
 })
 
 test("withdrawing consent reloads the document to stop previously installed provider listeners", () => {

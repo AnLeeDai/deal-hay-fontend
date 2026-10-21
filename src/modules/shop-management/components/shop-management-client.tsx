@@ -128,6 +128,7 @@ import {
 } from "@/modules/shop-management/schemas/shop-management"
 import { CreateProductForm } from "@/modules/shop-management/components/create-product-form"
 import { ProductPricingForm } from "@/modules/shop-management/components/product-pricing-form"
+import { ShopShippingSettings } from "@/modules/shop-management/components/shop-shipping-settings"
 
 function ProductInventoryForm({ product }: { product: ShopProduct }) {
   const [isPending, startTransition] = useTransition()
@@ -1390,6 +1391,38 @@ function OrderCard({ order }: { order: ShopOrder }) {
                 </div>
               ))}
             </div>
+            <dl className="space-y-2 rounded-lg border p-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt>Tiền hàng</dt>
+                <dd>{formatCurrency(order.subtotal)}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt>Giảm giá tiền hàng</dt>
+                <dd>−{formatCurrency(order.discount_amount)}</dd>
+              </div>
+              {order.shipping_fee !== undefined ? (
+                <div className="flex justify-between gap-4">
+                  <dt>Phí vận chuyển</dt>
+                  <dd>{formatCurrency(order.shipping_fee)}</dd>
+                </div>
+              ) : null}
+              {order.shipping_discount_amount !== undefined ? (
+                <div className="flex justify-between gap-4">
+                  <dt>Giảm phí vận chuyển</dt>
+                  <dd>−{formatCurrency(order.shipping_discount_amount)}</dd>
+                </div>
+              ) : null}
+              {order.shipping_total !== undefined ? (
+                <div className="flex justify-between gap-4">
+                  <dt>Phí vận chuyển phải trả</dt>
+                  <dd>{formatCurrency(order.shipping_total)}</dd>
+                </div>
+              ) : null}
+              <div className="flex justify-between gap-4 border-t pt-2 font-semibold">
+                <dt>Tổng thanh toán</dt>
+                <dd>{formatCurrency(order.total)}</dd>
+              </div>
+            </dl>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
@@ -1767,6 +1800,7 @@ export function ShopManagementClient({
               </CardFooter>
             </Card>
           </div>
+          <ShopShippingSettings />
         </TabsContent>
 
         <TabsContent className="space-y-6 pt-4" value="products">

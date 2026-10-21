@@ -77,6 +77,9 @@ export type ShopOrder = {
     | "cancelled"
   subtotal: number
   discount_amount: number
+  shipping_fee?: number
+  shipping_discount_amount?: number
+  shipping_total?: number
   total: number
   note: string | null
   created_at: string | null

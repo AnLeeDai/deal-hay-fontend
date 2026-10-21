@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm, useWatch } from "react-hook-form"
-import { MessageCircleIcon, ShoppingBagIcon } from "lucide-react"
+import { MessageCircleIcon, ShoppingBagIcon, TruckIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { AddressFields } from "@/components/address-fields"
@@ -29,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ProductGallery } from "@/modules/public/components/product-gallery"
+import { ShippingRewardOffer } from "@/modules/public/components/shipping-reward-offer"
 import { orderProductAction } from "@/modules/public/actions"
 import {
   checkoutSchema,
@@ -37,10 +38,17 @@ import {
 import { applyServerErrors } from "@/lib/form-utils"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { getAuthPageHref } from "@/lib/auth-redirect"
-import { loadDiscountCodesAction } from "@/modules/discount-codes/actions"
+import {
+  loadDiscountCodesAction,
+  saveDiscountCodeAction,
+} from "@/modules/discount-codes/actions"
+import { loadShippingQuoteAction } from "@/modules/public/shipping-actions"
+import { loadShippingDiscountCodeAction } from "@/modules/public/shipping-reward-actions"
 import { summarizeDiscountCodes } from "@/modules/discount-codes/lib/discount-codes"
 import { formatDiscountCodeValue } from "@/modules/discount-codes/lib/format-discount-code"
 import type { ProductDiscountCode } from "@/types/discount-code"
+import type { ShippingQuote } from "@/types/shipping"
+import type { ShippingDiscountCode } from "@/types/shipping-reward"
 import type {
   PublicProduct,
   PublicProductVariant,
@@ -80,6 +88,26 @@ export function ProductOrderDialog({
   const [codesError, setCodesError] = useState<string | null>(null)
   const [codesPending, startCodesTransition] = useTransition()
   const [reloadCodes, setReloadCodes] = useState(0)
+  const [enteredCode, setEnteredCode] = useState("")
+  const [showShippingOffer, setShowShippingOffer] = useState(false)
+  const [shippingCode, setShippingCode] = useState<ShippingDiscountCode | null>(
+    null
+  )
+  const [useShippingCode, setUseShippingCode] = useState(true)
+  const [shippingCodeError, setShippingCodeError] = useState<string | null>(
+    null
+  )
+  const [shippingCodePending, startShippingCodeTransition] = useTransition()
+  const [shippingRewardPending, setShippingRewardPending] = useState(false)
+  const [reloadShippingCode, setReloadShippingCode] = useState(0)
+  const shippingCodeRevision = useRef(0)
+  const [shippingQuote, setShippingQuote] = useState<{
+    key: string
+    data?: ShippingQuote
+    error?: string
+  } | null>(null)
+  const [shippingPending, startShippingTransition] = useTransition()
+  const [reloadShipping, setReloadShipping] = useState(0)
   const [idempotencyKey, setIdempotencyKey] = useState(() =>
     crypto.randomUUID()
   )
@@ -96,6 +124,45 @@ export function ProductOrderDialog({
     },
   })
   const quantity = useWatch({ control: form.control, name: "quantity" }) ?? 1
+  const provinceCode = useWatch({
+    control: form.control,
+    name: "shipping_province_code",
+  })
+  const wardCode = useWatch({
+    control: form.control,
+    name: "shipping_ward_code",
+  })
+  const shippingKey = `${shop.code}:${product.slug}:${provinceCode}:${wardCode}`
+  const currentShippingQuote =
+    shippingQuote?.key === shippingKey ? shippingQuote : null
+  const shippingLocationSelected = Boolean(provinceCode && wardCode)
+  const shippingBlocked =
+    shippingLocationSelected &&
+    (shippingPending ||
+      !currentShippingQuote?.data ||
+      Boolean(currentShippingQuote.error))
+  const shippingFee = currentShippingQuote?.data?.fee ?? 0
+  const shippingCodeId = shippingCode?.id
+  const shippingCodeExpiresAt = shippingCode?.expires_at
+  const availableShippingCode =
+    shippingCode?.is_available &&
+    !shippingCode.used_at &&
+    shippingCode.product_id === product.id
+      ? shippingCode
+      : null
+  const shippingCodeUnconfirmed =
+    Boolean(availableShippingCode && useShippingCode) &&
+    (shippingCodePending || Boolean(shippingCodeError))
+  const appliedShippingCode =
+    availableShippingCode &&
+    useShippingCode &&
+    !shippingCodeUnconfirmed &&
+    !shippingBlocked &&
+    shippingFee > 0
+      ? availableShippingCode
+      : null
+  const shippingDiscount = appliedShippingCode ? shippingFee : 0
+  const shippingTotal = shippingFee - shippingDiscount
   const validQuantity =
     Number.isInteger(quantity) &&
     quantity >= 1 &&
@@ -120,6 +187,26 @@ export function ProductOrderDialog({
   )
 
   useEffect(() => {
+    if (!shippingCodeId || !shippingCodeExpiresAt) return
+    const expiresAt = Date.parse(shippingCodeExpiresAt)
+    let timeout: ReturnType<typeof setTimeout>
+    function checkExpiry() {
+      const remaining = expiresAt - Date.now()
+      if (!Number.isFinite(remaining) || remaining <= 0) {
+        setShippingCode((code) =>
+          code && code.id === shippingCodeId
+            ? { ...code, is_available: false }
+            : code
+        )
+      } else {
+        timeout = setTimeout(checkExpiry, Math.min(remaining, 2_147_483_647))
+      }
+    }
+    timeout = setTimeout(checkExpiry, 0)
+    return () => clearTimeout(timeout)
+  }, [shippingCodeId, shippingCodeExpiresAt])
+
+  useEffect(() => {
     if (!open) return
     let active = true
     startCodesTransition(async () => {
@@ -134,8 +221,113 @@ export function ProductOrderDialog({
     }
   }, [open, product.id, reloadCodes])
 
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    const revision = ++shippingCodeRevision.current
+    startShippingCodeTransition(async () => {
+      const state = await loadShippingDiscountCodeAction(
+        shop.code,
+        product.slug
+      )
+      if (!active || revision !== shippingCodeRevision.current) return
+      setShippingCodeError(state.success ? null : state.message)
+      if (state.success) setShippingCode(state.data ?? null)
+    })
+    return () => {
+      active = false
+    }
+  }, [open, shop.code, product.slug, reloadShippingCode])
+
+  useEffect(() => {
+    if (!open || !checkout || !provinceCode || !wardCode) return
+    let active = true
+    startShippingTransition(async () => {
+      const result = await loadShippingQuoteAction(
+        shop.code,
+        product.slug,
+        provinceCode,
+        wardCode
+      )
+      if (!active) return
+      setShippingQuote({
+        key: shippingKey,
+        data: result.success ? result.data : undefined,
+        error: result.success ? undefined : result.message,
+      })
+    })
+    return () => {
+      active = false
+    }
+  }, [
+    open,
+    checkout,
+    provinceCode,
+    wardCode,
+    shop.code,
+    product.slug,
+    shippingKey,
+    reloadShipping,
+  ])
+
+  function applyEnteredCode() {
+    const value = enteredCode.trim().toUpperCase()
+    const code = savedCodes.find(
+      (item) => item.code === value && item.product.id === product.id
+    )
+    if (
+      !code ||
+      code.used_at ||
+      new Date(code.expires_at).getTime() <= Date.now()
+    ) {
+      toast.error("Mã không thuộc sản phẩm này, đã hết hạn hoặc đã sử dụng.")
+      return
+    }
+    if (selectedCodes.includes(code.code)) {
+      toast.info("Mã này đã được chọn.")
+      return
+    }
+    if (selectedCodes.length >= 100) {
+      toast.error("Mỗi đơn hàng áp dụng tối đa 100 mã.")
+      return
+    }
+    startCodesTransition(async () => {
+      const result = code.is_available
+        ? { success: true, data: code, message: "" }
+        : await saveDiscountCodeAction(code.id)
+      if (!result.success || !result.data?.is_available) {
+        toast.error(result.message || "Mã chưa thể sử dụng cho đơn hàng này.")
+        return
+      }
+      const confirmed = result.data
+      setSavedCodes((codes) =>
+        codes.map((item) => (item.id === confirmed.id ? confirmed : item))
+      )
+      setSelectedCodes((values) =>
+        values.includes(confirmed.code)
+          ? values
+          : [...values, confirmed.code].slice(0, 100)
+      )
+      setEnteredCode("")
+    })
+  }
+
   const submit = form.handleSubmit((values) =>
     startTransition(async () => {
+      if (codesPending) {
+        toast.error("Vui lòng chờ xác nhận mã giảm giá trước khi đặt hàng.")
+        return
+      }
+      if (shippingBlocked) {
+        toast.error(
+          "Vui lòng chờ hoặc tải lại phí vận chuyển trước khi đặt hàng."
+        )
+        return
+      }
+      if (shippingRewardPending || shippingCodeUnconfirmed) {
+        toast.error("Vui lòng chờ xác nhận mã vận chuyển trước khi đặt hàng.")
+        return
+      }
       if (unconfirmedCodes) {
         toast.error(
           "Chưa xác nhận được tất cả mã đã chọn. Vui lòng tải lại mã hoặc bỏ mã không hợp lệ trước khi đặt hàng."
@@ -149,6 +341,12 @@ export function ProductOrderDialog({
           ...values,
           variant_id: variant?.id,
           discount_codes: selectedCodes.length ? selectedCodes : undefined,
+          shipping_discount_code: appliedShippingCode?.code,
+          quoted_shipping_fee:
+            currentShippingQuote?.data?.configured &&
+            currentShippingQuote.data.eligible
+              ? shippingFee
+              : undefined,
         },
         idempotencyKey
       )
@@ -156,17 +354,25 @@ export function ProductOrderDialog({
         const hasErrors = applyServerErrors(state.errors, form.setError)
         if (
           !hasErrors ||
+          state.errors?.quoted_shipping_fee ||
           state.errors?.discount_codes ||
           state.errors?.discount_code ||
+          state.errors?.shipping_discount_code ||
           state.errors?.variant_id
         ) {
           toast.error(
-            state.errors?.discount_codes?.[0] ||
+            state.errors?.quoted_shipping_fee?.[0] ||
+              state.errors?.discount_codes?.[0] ||
               state.errors?.discount_code?.[0] ||
+              state.errors?.shipping_discount_code?.[0] ||
               state.errors?.variant_id?.[0] ||
               state.message
           )
         }
+        if (state.errors?.quoted_shipping_fee)
+          setReloadShipping((value) => value + 1)
+        if (state.errors?.shipping_discount_code)
+          setReloadShippingCode((value) => value + 1)
         return
       }
       toast.success(
@@ -178,6 +384,9 @@ export function ProductOrderDialog({
       )
       setSavedCodes((codes) => codes.filter((code) => !consumed.has(code.code)))
       setSelectedCodes([])
+      if (appliedShippingCode) setShippingCode(null)
+      setUseShippingCode(true)
+      setShowShippingOffer(false)
       setCheckout(false)
       form.reset()
       setIdempotencyKey(crypto.randomUUID())
@@ -190,7 +399,10 @@ export function ProductOrderDialog({
     <Dialog
       open={open}
       onOpenChange={(value) => {
-        if (!pending) onOpenChange(value)
+        if (!pending && !shippingRewardPending) {
+          if (!value) setShowShippingOffer(false)
+          onOpenChange(value)
+        }
       }}
     >
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl">
@@ -228,7 +440,7 @@ export function ProductOrderDialog({
               {formatCurrency(regularPrice)}
             </p>
             <p className="text-sm text-muted-foreground">
-              Bạn có thể áp dụng các mã đã lưu của sản phẩm ở bước xác nhận đơn
+              Bạn có thể nhập hoặc chọn mã của sản phẩm ở bước xác nhận đơn
               hàng.
             </p>
             <div className="space-y-3">
@@ -253,12 +465,31 @@ export function ProductOrderDialog({
               <Button
                 className="w-full"
                 variant="outline"
-                onClick={() => setCheckout(true)}
+                onClick={() => {
+                  setShowShippingOffer(true)
+                  setCheckout(true)
+                }}
                 disabled={pending || stock < 1}
               >
-                Dùng mã đã tích lũy
+                <TruckIcon /> Miễn phí vận chuyển
               </Button>
             </div>
+            {showShippingOffer ? (
+              <ShippingRewardOffer
+                shopCode={shop.code}
+                productSlug={product.slug}
+                code={availableShippingCode}
+                disabled={pending}
+                onRedeemingChange={setShippingRewardPending}
+                onCodeReceived={(code) => {
+                  shippingCodeRevision.current += 1
+                  setShippingCode(code)
+                  setShippingCodeError(null)
+                  setUseShippingCode(true)
+                  toast.success("Đã nhận mã miễn phí vận chuyển.")
+                }}
+              />
+            ) : null}
             {checkout ? (
               <Form {...form}>
                 <form onSubmit={submit} className="space-y-4 border-t pt-4">
@@ -269,6 +500,31 @@ export function ProductOrderDialog({
                     <legend className="mb-2 font-medium">
                       Mã giảm giá của tôi
                     </legend>
+                    <div className="flex gap-2">
+                      <Input
+                        aria-label="Mã giảm giá của sản phẩm"
+                        autoCapitalize="characters"
+                        autoComplete="off"
+                        placeholder="Nhập mã của sản phẩm"
+                        maxLength={32}
+                        value={enteredCode}
+                        onChange={(event) => setEnteredCode(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault()
+                            if (enteredCode.trim()) applyEnteredCode()
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!enteredCode.trim()}
+                        onClick={applyEnteredCode}
+                      >
+                        Áp dụng
+                      </Button>
+                    </div>
                     {discountCodes.length > 0 ? (
                       <>
                         <div className="flex flex-wrap gap-2">
@@ -398,6 +654,52 @@ export function ProductOrderDialog({
                     Có thể dùng nhiều mã. Tổng giảm tối đa bằng tiền hàng; mã
                     chưa cần dùng khi tiền hàng đã về 0đ sẽ được giữ lại.
                   </p>
+                  {availableShippingCode ? (
+                    <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+                      <Checkbox
+                        checked={useShippingCode}
+                        disabled={pending || shippingRewardPending}
+                        onCheckedChange={(checked) =>
+                          setUseShippingCode(Boolean(checked))
+                        }
+                      />
+                      <span>
+                        <span className="font-medium">
+                          Giảm 100% phí vận chuyển
+                        </span>
+                        <br />
+                        <span className="text-xs break-all text-muted-foreground">
+                          {availableShippingCode.code} · Hết hạn{" "}
+                          {formatDate(availableShippingCode.expires_at)}
+                        </span>
+                        <br />
+                        <span className="text-xs text-muted-foreground">
+                          Áp dụng tại Hà Nội khi shop có báo phí. Mã được giữ
+                          lại nếu đơn chưa có phí ship.
+                        </span>
+                      </span>
+                    </label>
+                  ) : null}
+                  {shippingCodeError &&
+                  !shippingCodeError.includes("đăng nhập") ? (
+                    <div
+                      className="space-y-2 text-xs text-destructive"
+                      role="alert"
+                    >
+                      <p>{shippingCodeError}</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={shippingCodePending || pending}
+                        onClick={() =>
+                          setReloadShippingCode((value) => value + 1)
+                        }
+                      >
+                        Tải lại mã vận chuyển
+                      </Button>
+                    </div>
+                  ) : null}
                   <p className="font-medium">Thông tin giao hàng</p>
                   {(
                     [
@@ -499,12 +801,52 @@ export function ProductOrderDialog({
                           Giảm từ mã tích lũy:{" "}
                           {formatCurrency(summary.discount)}
                         </p>
-                        <p className="font-semibold">
-                          Tổng thanh toán: {formatCurrency(summary.total)}
+                        <p className="text-sm">
+                          Phí vận chuyển:{" "}
+                          {!shippingLocationSelected
+                            ? "chọn địa chỉ để xem phí"
+                            : shippingBlocked
+                              ? currentShippingQuote?.error ||
+                                "Đang lấy phí vận chuyển..."
+                              : currentShippingQuote?.data?.fee === null
+                                ? "trao đổi với shop"
+                                : formatCurrency(shippingFee)}
                         </p>
-                        {summary.total === 0 && summary.discount > 0 ? (
+                        {appliedShippingCode ? (
+                          <p className="text-sm text-primary">
+                            Giảm phí vận chuyển:{" "}
+                            {formatCurrency(shippingDiscount)}
+                          </p>
+                        ) : null}
+                        {shippingCodeUnconfirmed ? (
+                          <p className="text-sm text-muted-foreground">
+                            Đang chờ xác nhận mã vận chuyển.
+                          </p>
+                        ) : null}
+                        {currentShippingQuote?.error ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={shippingPending}
+                            onClick={() =>
+                              setReloadShipping((value) => value + 1)
+                            }
+                          >
+                            Tải lại phí vận chuyển
+                          </Button>
+                        ) : null}
+                        <p className="font-semibold">
+                          {currentShippingQuote?.data?.fee != null
+                            ? "Tổng thanh toán"
+                            : "Tiền hàng sau giảm"}
+                          : {formatCurrency(summary.total + shippingTotal)}
+                        </p>
+                        {summary.total === 0 &&
+                        summary.discount > 0 &&
+                        shippingTotal === 0 ? (
                           <p className="text-sm font-medium text-primary">
-                            Bạn đã tích lũy đủ mã để đặt đơn 0đ.
+                            Mã đã giảm toàn bộ tiền hàng.
                           </p>
                         ) : null}
                       </>
@@ -513,13 +855,22 @@ export function ProductOrderDialog({
                   <Button
                     type="submit"
                     className="w-full"
-                    disabled={pending || !validQuantity || unconfirmedCodes}
+                    disabled={
+                      pending ||
+                      codesPending ||
+                      !validQuantity ||
+                      unconfirmedCodes ||
+                      shippingBlocked ||
+                      shippingRewardPending ||
+                      shippingCodeUnconfirmed
+                    }
                   >
                     {pending
                       ? "Đang xử lý..."
                       : validQuantity &&
                           !unconfirmedCodes &&
-                          summary.total === 0
+                          summary.total + shippingTotal === 0 &&
+                          currentShippingQuote?.data?.fee != null
                         ? "Xác nhận đặt hàng 0đ"
                         : "Xác nhận đặt hàng"}
                   </Button>

@@ -902,7 +902,7 @@ Quảng cáo dùng ba mã Adsterra đã cấp: Social Bar, Popunder và Native B
 
 Các script quảng cáo chỉ hoạt động trên trang chủ, gian hàng và chi tiết sản phẩm sau khi người dùng đồng ý. Popunder được thêm một lần vào cuối `head`; Social Bar được thêm một lần ở cuối `body`. Native Banner dùng một container duy nhất trong layout mua sắm, giữ nguyên khi chuyển giữa các trang mua sắm và không tự tải lại quảng cáo theo route hoặc bộ đếm thời gian. Không lặp cùng mã Native Banner trên một trang; nếu cần vị trí khác, yêu cầu mã bổ sung từ Adsterra. Tần suất Popunder, tần suất và vị trí Social Bar do Adsterra cấu hình qua hỗ trợ.
 
-Không dùng lượt xem/click quảng cáo để cấp mã giảm giá. [Điều khoản publisher](https://adsterra.com/publishers-terms-managed/) cấm traffic có thưởng, hành vi gây hiểu nhầm hoặc ép tương tác.
+Adsterra không cung cấp callback xác nhận xem hoàn tất cho ba mã này. [Điều khoản publisher](https://adsterra.com/publishers-terms-managed/) hạn chế traffic có thưởng. Chương trình mã vận chuyển bên dưới mặc định tắt; cần xác nhận cách sử dụng với nhà cung cấp trước khi bật trong môi trường vận hành. Thao tác **Xem** của website không xác nhận lượt xem, lượt click quảng cáo đối tác hay doanh thu Adsterra.
 
 Hộp lựa chọn quảng cáo cho phép đồng ý hoặc từ chối trước khi tải script. Cookie `deal-hay-advertising-consent` lưu `v1:accepted` hoặc `v1:declined` trong 180 ngày. Người dùng có thể mở lại lựa chọn qua nút **Tùy chọn cookie quảng cáo**; rút lại đồng ý tải lại trang để dừng các script đã khởi tạo. Khi quay lại một tab hoặc tài liệu được khôi phục từ lịch sử, hệ thống đối chiếu cookie và tải lại nếu lựa chọn đã đổi ở nơi khác. Chính sách tại `/privacy` giải thích dữ liệu quảng cáo và dẫn đến [chính sách bảo mật Adsterra](https://adsterra.com/privacy-policy-managed/) cùng [chính sách cookie](https://adsterra.com/cookies/).
 
@@ -911,3 +911,17 @@ Các trang mua sắm và các trang chức năng còn lại sử dụng hai root
 Không thể đọc trực tiếp hai trang tài khoản [Websites](https://beta.publishers.adsterra.com/websites) và [FAQ](https://beta.publishers.adsterra.com/faq) trong môi trường nghiên cứu. Trước khi vận hành, đăng nhập dashboard để xác nhận đúng tên miền đã được duyệt và cả ba ad unit ở trạng thái Active; kiểm tra lại mã bằng Get code. Theo [hướng dẫn quản lý website](https://help-publishers.adsterra.com/en/articles/5056395-managing-your-websites), ad unit không dùng quá 14 ngày có thể thành inactive và cần Resubmit. Hướng dẫn tích hợp chính thức xác nhận Adsterra không yêu cầu `ads.txt`; nếu cần khai báo người bán cho mục đích khác, lấy thông tin từ hỗ trợ thay vì tự tạo publisher ID.
 
 Chạy `npm run test:ads` để kiểm tra mã tích hợp, chống tải trùng, lựa chọn cookie và ranh giới trang mua sắm/tài khoản. Kiểm thử mô phỏng script và không tạo lượt xem hay click quảng cáo thật.
+
+## 32. Phí vận chuyển Hà Nội
+
+Chủ shop cấu hình tại **Kênh người bán → Cửa hàng → Phí vận chuyển Hà Nội**. Có thể nhập phí mặc định và mức riêng cho từng phường/xã; mức riêng thay thế phí mặc định. Tính năng mặc định tắt và chỉ tính phí sau khi shop lưu cấu hình, bật áp dụng.
+
+Khi khách chọn địa chỉ đặt hàng, frontend lấy báo phí từ backend theo sản phẩm và phường/xã. Địa chỉ Hà Nội dùng mức phí shop đã bật. Với địa chỉ ngoài Hà Nội hoặc shop chưa cấu hình, giao diện ghi rõ phí cần trao đổi với shop và chỉ hiển thị tiền hàng sau giảm. Phí được cộng riêng với tiền hàng; mã giảm giá sản phẩm hiện có tiếp tục chỉ giảm tiền hàng. Nếu phí đổi trước khi đặt, backend yêu cầu tải lại báo phí thay vì âm thầm tính giá khác.
+
+Hộp đặt hàng có ô nhập mã sản phẩm và nút **Miễn phí vận chuyển**. Mã sản phẩm nhập phải thuộc tài khoản và sản phẩm đang đặt; mã chưa lưu được lưu qua API trước khi chọn.
+
+Khi backend bật `SHIPPING_REWARDS_ENABLED=true` và shop đã bật phí giao hàng, **Miễn phí vận chuyển** mở khu vực quảng cáo Adsterra hiện có. Native Banner được chuyển tạm vào hộp đặt hàng và trả về vị trí cũ khi đóng, giữ một container và một bộ script. Khách cần đồng ý cookie và chờ quảng cáo tải trước khi nút **Xem** khả dụng; quảng cáo trống hoặc bị chặn không mở khóa nút. Mở khu vực quảng cáo chỉ tạo phiên, chưa cấp mã. Bấm **Xem** gửi yêu cầu đổi mã đến backend; đây là thao tác ưu đãi nội bộ, không phải xác nhận hoàn tất quảng cáo từ Adsterra.
+
+Mã giảm 100% phí ship được lưu theo tài khoản và sản phẩm, tự khôi phục khi mở lại hộp đặt hàng, mặc định hết hạn sau 7 ngày. Mã dùng một lần cho phí giao hàng Hà Nội do shop báo; phí bằng 0 hoặc chưa xác định thì giữ mã. Khách có thể bỏ chọn mã và kết hợp với mã giảm tiền hàng. Backend xác thực mã và tính tổng, chống dùng lại hoặc cấp trùng khi thử lại yêu cầu.
+
+Chạy migration backend trước khi triển khai frontend mới: `php artisan migrate --force`. Kiểm tra báo phí, cấu hình và checkout bằng `node --test tests/public-shipping-quote.test.mjs tests/shop-shipping-settings.test.mjs tests/discount-code-actions.test.mjs tests/shipping-reward-actions.test.mjs`.
