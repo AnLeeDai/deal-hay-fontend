@@ -39,24 +39,12 @@ export default function TermsPage() {
           đã về 0đ được giữ lại. Mức giảm và hạn dùng được hiển thị trên mã.
         </p>
         <p>
-          Quảng cáo đối tác được hiển thị riêng với thông tin sản phẩm và nút
-          đặt hàng. Việc mở quảng cáo không cấp mã giảm giá hoặc thay đổi giá
-          đơn hàng. Nội dung trên trang quảng cáo bên thứ ba tuân theo điều
-          khoản của bên cung cấp trang đó.
-        </p>
-        <p>
-          Bạn có thể tự chọn tham gia nhiệm vụ nhận mã giảm giá khi tính năng
-          này được mở. Điều kiện hoàn thành được hiển thị trên trang nhiệm vụ
-          của AdGem. Mỗi nhiệm vụ có doanh thu được đối tác xác nhận hợp lệ sẽ
-          cấp một mã giảm giá cho sản phẩm đã chọn; mức mặc định là 1.000đ và
-          được thông báo trước khi bạn tham gia. Mã được lưu vào tài khoản nhận
-          thưởng và có hạn dùng được ghi trên mã. Một nhiệm vụ có nhiều mốc
-          thưởng có thể cấp mã cho từng mốc được xác nhận riêng.
-        </p>
-        <p>
-          Việc xác nhận nhiệm vụ có thể mất thời gian. Mở liên kết, quay lại
-          trang hoặc chờ hết thời gian không thay thế xác nhận của đối tác. Bạn
-          có thể tiếp tục đặt hàng mà không tham gia nhiệm vụ.
+          Deal Hay sử dụng quảng cáo Adsterra, gồm liên kết quảng cáo, banner,
+          Social Bar và Popunder. Quảng cáo có thể mở trang của đối tác trong
+          tab hoặc cửa sổ mới. Liên kết và banner quảng cáo được đánh dấu riêng
+          với nội dung sản phẩm. Việc mở quảng cáo không cấp mã giảm giá hoặc
+          thay đổi giá đơn hàng. Nội dung trên trang quảng cáo bên thứ ba tuân
+          theo điều khoản của bên cung cấp trang đó.
         </p>
       </section>
       <section className="space-y-2">

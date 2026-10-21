@@ -50,56 +50,42 @@ export default function PrivacyPage() {
       <section className="space-y-2">
         <h2 className="text-xl font-semibold">5. Quảng cáo</h2>
         <p>
-          Các trang mua sắm có thể hiển thị quảng cáo của Google AdSense. Google
-          và các đối tác quảng cáo có thể sử dụng cookie, địa chỉ IP và thông
-          tin trình duyệt để phân phối, cá nhân hóa và đo lường quảng cáo dựa
-          trên những lần bạn truy cập trang này và các trang khác. Xem thêm tại{" "}
+          Khi bạn đồng ý quảng cáo, các trang mua sắm có thể hiển thị Social
+          Bar, Popunder và Native Banner của Adsterra. Popunder có thể mở trang
+          quảng cáo trong tab hoặc cửa sổ khác khi bạn tương tác. Liên kết quảng
+          cáo Smartlink đưa bạn đến trang của đối tác khi bạn chọn mở liên kết.
+        </p>
+        <p>
+          Adsterra và các đối tác quảng cáo có thể sử dụng cookie, địa chỉ IP,
+          thông tin thiết bị, trình duyệt và hoạt động tương tác để phân phối,
+          đo lường quảng cáo và phòng chống gian lận theo chính sách của họ. Xem
+          thêm tại{" "}
           <a
             className="text-primary underline"
-            href="https://policies.google.com/technologies/ads?hl=vi"
+            href="https://adsterra.com/privacy-policy-managed/"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Cách Google sử dụng thông tin cho quảng cáo
+            Chính sách bảo mật của Adsterra
+          </a>{" "}
+          và{" "}
+          <a
+            className="text-primary underline"
+            href="https://adsterra.com/cookies/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Chính sách cookie của Adsterra
           </a>
           .
         </p>
         <p>
-          Bạn có thể quản lý lựa chọn và tắt cá nhân hóa quảng cáo tại{" "}
-          <a
-            className="text-primary underline"
-            href="https://myadcenter.google.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Trung tâm quảng cáo của Google
-          </a>
-          .
-        </p>
-      </section>
-      <section className="space-y-2">
-        <h2 className="text-xl font-semibold">6. Nhiệm vụ nhận mã giảm giá</h2>
-        <p>
-          Khi bạn tự chọn tham gia nhiệm vụ, Deal Hay mở trang Offerwall của
-          AdGem và gửi mã nhận diện dành cho tích hợp cùng thông tin phiên nhiệm
-          vụ để ghi nhận phần thưởng cho đúng tài khoản và sản phẩm. AdGem và
-          bên cung cấp nhiệm vụ có thể xử lý địa chỉ IP, thông tin thiết bị,
-          trình duyệt và hoạt động của bạn theo chính sách của họ. Xem thêm tại{" "}
-          <a
-            className="text-primary underline"
-            href="https://adgem.com/privacy-policy/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Chính sách bảo mật của AdGem
-          </a>
-          .
-        </p>
-        <p>
-          Deal Hay nhận thông tin chuyển đổi do đối tác xác nhận, gồm mã nhiệm
-          vụ, mã giao dịch, thời điểm hoàn thành và doanh thu ghi nhận, để cấp
-          mã giảm giá, đối soát và phòng chống nhận thưởng trùng lặp. Việc tham
-          gia nhiệm vụ là tự nguyện và không phải điều kiện để đặt hàng.
+          Bạn có thể đồng ý hoặc từ chối tại hộp lựa chọn quảng cáo và đổi lựa
+          chọn qua nút Tùy chọn cookie quảng cáo trên các trang mua sắm. Script
+          quảng cáo chỉ tải sau khi bạn đồng ý. Lựa chọn được lưu bằng cookie
+          trong 180 ngày; khi rút lại đồng ý, trang tải lại để dừng quảng cáo.
+          Bạn có thể xóa cookie quảng cáo đã lưu trong cài đặt trình duyệt. Việc
+          từ chối không ảnh hưởng đến khả năng mua sắm và đặt hàng.
         </p>
       </section>
       <Link className="inline-block text-primary underline" href="/sign-up">

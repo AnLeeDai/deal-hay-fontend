@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -29,7 +29,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ProductGallery } from "@/modules/public/components/product-gallery"
-import { RewardedTasks } from "@/modules/public/components/rewarded-tasks"
 import { orderProductAction } from "@/modules/public/actions"
 import {
   checkoutSchema,
@@ -134,16 +133,6 @@ export function ProductOrderDialog({
       active = false
     }
   }, [open, product.id, reloadCodes])
-
-  const receiveRewardedCodes = useCallback((codes: ProductDiscountCode[]) => {
-    if (!codes.length) return
-    setSavedCodes((current) => {
-      const updated = new Map(current.map((code) => [code.id, code]))
-      for (const code of codes) updated.set(code.id, code)
-      return Array.from(updated.values())
-    })
-    setReloadCodes((value) => value + 1)
-  }, [])
 
   const submit = form.handleSubmit((values) =>
     startTransition(async () => {
@@ -270,26 +259,6 @@ export function ProductOrderDialog({
                 Dùng mã đã tích lũy
               </Button>
             </div>
-            <RewardedTasks
-              active={open}
-              disabled={pending}
-              shopCode={shop.code}
-              productSlug={product.slug}
-              onCodesConfirmed={receiveRewardedCodes}
-              onUseCodes={(codes) => {
-                setSelectedCodes((current) =>
-                  Array.from(
-                    new Set([
-                      ...current,
-                      ...codes
-                        .filter((code) => code.product.id === product.id)
-                        .map((code) => code.code),
-                    ])
-                  ).slice(0, 100)
-                )
-                setCheckout(true)
-              }}
-            />
             {checkout ? (
               <Form {...form}>
                 <form onSubmit={submit} className="space-y-4 border-t pt-4">

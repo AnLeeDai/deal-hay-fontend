@@ -1,13 +1,10 @@
-export const ADSENSE_PUBLISHER_ID = "pub-8299349376566920"
-export const ADSENSE_CLIENT_ID = `ca-${ADSENSE_PUBLISHER_ID}`
-export const ADSENSE_SCRIPT_URL = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`
-
-export function isStorefrontAdvertisingPath(pathname: string | null): boolean {
-  if (!pathname) return false
-
-  return (
-    pathname === "/" ||
-    /^\/shops\/[^/]+\/?$/.test(pathname) ||
-    /^\/shops\/[^/]+\/products\/[^/]+\/?$/.test(pathname)
-  )
-}
+export const ADSTERRA_SMARTLINK_URL =
+  "https://araplhn.org/4/401514dcd1af3bcc0e79f8a43bd00fe3"
+export const ADSTERRA_SOCIAL_BAR_SCRIPT_URL =
+  "https://bauval.org/14/d1ef34f7547431dda803fb4f5849055c"
+export const ADSTERRA_POPUNDER_SCRIPT_URL =
+  "https://abscloud.org/1/6d2d5564c18455acfe7ff77b2d908f42"
+export const ADSTERRA_NATIVE_BANNER_SCRIPT_URL =
+  "https://bauval.org/21/e366db0bfb6da558a13f3e75254ed7db"
+export const ADSTERRA_NATIVE_BANNER_CONTAINER_ID =
+  "container-e366db0bfb6da558a13f3e75254ed7db"
