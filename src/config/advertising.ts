@@ -1,5 +1,3 @@
-export const ADSTERRA_SMARTLINK_URL =
-  "https://araplhn.org/4/401514dcd1af3bcc0e79f8a43bd00fe3"
 export const ADSTERRA_SOCIAL_BAR_SCRIPT_URL =
   "https://bauval.org/14/d1ef34f7547431dda803fb4f5849055c"
 export const ADSTERRA_POPUNDER_SCRIPT_URL =

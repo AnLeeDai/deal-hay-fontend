@@ -39,12 +39,12 @@ export default function TermsPage() {
           đã về 0đ được giữ lại. Mức giảm và hạn dùng được hiển thị trên mã.
         </p>
         <p>
-          Deal Hay sử dụng quảng cáo Adsterra, gồm liên kết quảng cáo, banner,
-          Social Bar và Popunder. Quảng cáo có thể mở trang của đối tác trong
-          tab hoặc cửa sổ mới. Liên kết và banner quảng cáo được đánh dấu riêng
-          với nội dung sản phẩm. Việc mở quảng cáo không cấp mã giảm giá hoặc
-          thay đổi giá đơn hàng. Nội dung trên trang quảng cáo bên thứ ba tuân
-          theo điều khoản của bên cung cấp trang đó.
+          Deal Hay sử dụng quảng cáo Adsterra, gồm Social Bar, Popunder và
+          Native Banner. Quảng cáo có thể mở trang của đối tác trong tab hoặc
+          cửa sổ mới. Banner quảng cáo được đánh dấu riêng với nội dung sản
+          phẩm. Việc mở quảng cáo không cấp mã giảm giá hoặc thay đổi giá đơn
+          hàng. Nội dung trên trang quảng cáo bên thứ ba tuân theo điều khoản
+          của bên cung cấp trang đó.
         </p>
       </section>
       <section className="space-y-2">

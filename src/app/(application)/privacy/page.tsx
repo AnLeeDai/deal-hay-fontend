@@ -52,8 +52,7 @@ export default function PrivacyPage() {
         <p>
           Khi bạn đồng ý quảng cáo, các trang mua sắm có thể hiển thị Social
           Bar, Popunder và Native Banner của Adsterra. Popunder có thể mở trang
-          quảng cáo trong tab hoặc cửa sổ khác khi bạn tương tác. Liên kết quảng
-          cáo Smartlink đưa bạn đến trang của đối tác khi bạn chọn mở liên kết.
+          quảng cáo trong tab hoặc cửa sổ khác khi bạn tương tác.
         </p>
         <p>
           Adsterra và các đối tác quảng cáo có thể sử dụng cookie, địa chỉ IP,

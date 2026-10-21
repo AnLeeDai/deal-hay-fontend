@@ -3,10 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import {
-  ADSTERRA_NATIVE_BANNER_CONTAINER_ID,
-  ADSTERRA_SMARTLINK_URL,
-} from "@/config/advertising"
+import { ADSTERRA_NATIVE_BANNER_CONTAINER_ID } from "@/config/advertising"
 import { initializeAdsterra } from "@/lib/adsterra"
 import {
   readAdvertisingConsent,
@@ -80,20 +77,9 @@ export function StorefrontAdvertising({
         className="mt-10 space-y-4 border-t pt-6"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Quảng cáo
-            </p>
-            <a
-              className="text-sm text-primary underline underline-offset-4"
-              href={ADSTERRA_SMARTLINK_URL}
-              target="_blank"
-              rel="sponsored nofollow noopener"
-            >
-              Xem quảng cáo từ đối tác
-              <span className="sr-only"> (mở tab mới)</span>
-            </a>
-          </div>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Quảng cáo
+          </p>
           <Button
             type="button"
             variant="ghost"

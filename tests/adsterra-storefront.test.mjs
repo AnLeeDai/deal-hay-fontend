@@ -301,11 +301,13 @@ function advertisingComponent(initialConsent, options = {}) {
   }
 }
 
-test("uses exactly the four supplied Adsterra placements", () => {
-  assert.equal(
-    config.ADSTERRA_SMARTLINK_URL,
-    "https://araplhn.org/4/401514dcd1af3bcc0e79f8a43bd00fe3"
-  )
+test("uses exactly the three supplied script-based Adsterra placements", () => {
+  assert.deepEqual(Object.keys(config).sort(), [
+    "ADSTERRA_NATIVE_BANNER_CONTAINER_ID",
+    "ADSTERRA_NATIVE_BANNER_SCRIPT_URL",
+    "ADSTERRA_POPUNDER_SCRIPT_URL",
+    "ADSTERRA_SOCIAL_BAR_SCRIPT_URL",
+  ])
   assert.equal(
     config.ADSTERRA_SOCIAL_BAR_SCRIPT_URL,
     "https://bauval.org/14/d1ef34f7547431dda803fb4f5849055c"
@@ -564,22 +566,15 @@ test("unmounting advertising removes consent synchronization event handlers", ()
   assert.equal(component.reloads, 0)
 })
 
-test("Smartlink remains an optional explicitly labeled sponsored link", () => {
-  const component = advertisingComponent(null)
-  const link = elements(component.tree).find(
-    (element) =>
-      element.type === "a" &&
-      element.props.href === config.ADSTERRA_SMARTLINK_URL
-  )
-  assert.ok(link)
-  assert.equal(link.props.target, "_blank")
-  assert.deepEqual(
-    new Set(link.props.rel.split(/\s+/)),
-    new Set(["sponsored", "nofollow", "noopener"])
-  )
-  assert.match(textContent(link), /quảng cáo/i)
-  assert.equal(link.props.onClick, undefined)
-  assert.equal(component.document.scripts.length, 0)
+test("storefront advertising renders no external advertising link for any consent choice", () => {
+  for (const initialConsent of [null, "declined", "accepted"]) {
+    const component = advertisingComponent(initialConsent)
+    const links = elements(component.tree).filter(
+      (element) => element.type === "a"
+    )
+    assert.ok(links.every((link) => link.props.href === "/privacy"))
+    assert.ok(links.every((link) => link.props.target !== "_blank"))
+  }
 })
 
 test("private routes use a separate document root so loaded provider code cannot survive navigation", () => {
