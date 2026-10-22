@@ -51,6 +51,7 @@ test("wallet and saved-product links survive authentication", () => {
   for (const path of [
     "/discount-codes",
     "/discount-codes?status=available",
+    "/diagnostics",
     "/shops/SHOP-1/products/ao-thun?discount_code=DH-EXAMPLE",
     "/shops/SHOP-1/products/ao-thun/checkout?variant_id=red-small&discount_code=DH-A%26B",
   ]) {

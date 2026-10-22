@@ -146,13 +146,13 @@ export function DiagnosticsClient() {
               title: "Trình duyệt → ứng dụng",
               value: browserLatency,
               description:
-                "Toàn bộ lượt gọi qua Next.js, gồm xác thực và kiểm tra API.",
+                "Thời gian từ lúc gửi yêu cầu đến khi nhận kết quả qua Next.js.",
             },
             {
               title: "Next.js → API",
               value: measurement?.api_latency_ms,
               description:
-                "Tổng thời gian HTTP, gồm API xử lý và kiểm tra các dịch vụ.",
+                "Lượt gọi HTTP từ Next.js đến API, gồm thời gian truyền và API xử lý.",
             },
             {
               title: "API kiểm tra dịch vụ",
@@ -174,6 +174,62 @@ export function DiagnosticsClient() {
             </Card>
           ))}
         </div>
+
+        {measurement?.request ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Chi tiết lượt gọi API</CardTitle>
+              <CardDescription>
+                Số liệu mới của lượt gọi hiện tại, gồm xác thực và giới hạn lượt
+                đo. Giúp phân biệt thời gian API xử lý với mẫu kiểm tra dịch vụ
+                được lưu lại.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <dt className="text-sm text-muted-foreground">
+                    API xử lý yêu cầu
+                  </dt>
+                  <dd className="mt-2 text-xl font-semibold tabular-nums">
+                    {milliseconds(measurement.request.duration_ms)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-muted-foreground">
+                    Truy vấn database trong lượt gọi
+                  </dt>
+                  <dd className="mt-2 text-xl font-semibold tabular-nums">
+                    {measurement.request.database_queries} lượt ·{" "}
+                    {milliseconds(measurement.request.database_ms)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-muted-foreground">
+                    Mẫu kiểm tra dịch vụ
+                  </dt>
+                  <dd className="mt-2 text-xl font-semibold">
+                    {measurement.request.probes_cached
+                      ? "Dùng lại mẫu đã lưu"
+                      : "Mẫu mới"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-muted-foreground">
+                    Nơi lưu giới hạn lượt đo
+                  </dt>
+                  <dd className="mt-2 text-xl font-semibold break-words">
+                    {measurement.request.limiter_store}
+                  </dd>
+                </div>
+              </dl>
+              <p className="text-sm text-muted-foreground">
+                Đo trong middleware Laravel, không gồm khởi động PHP, chờ luồng
+                PHP trống hoặc đường truyền giữa Next.js và API.
+              </p>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <div className="grid gap-4 md:grid-cols-2">
           {checks.map((check) => {

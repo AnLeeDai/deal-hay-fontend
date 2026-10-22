@@ -8,6 +8,13 @@ export type DiagnosticsResponse = {
   checked_at: string
   checks: Record<"database" | "cache" | "storage" | "reverb", DiagnosticCheck>
   duration_ms: number
+  request?: {
+    duration_ms: number
+    database_queries: number
+    database_ms: number
+    probes_cached: boolean
+    limiter_store: string
+  }
 }
 
 export type DiagnosticsMeasurement = DiagnosticsResponse & {

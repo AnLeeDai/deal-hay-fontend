@@ -929,6 +929,8 @@ Chạy `npm run test:ads` để kiểm tra lựa chọn cookie, script singleton
 
 Liên kết **Độ trễ** trên header/menu mobile mở `/diagnostics` sau khi đăng nhập. Bấm đo để xem thời gian trình duyệt/Next.js/API và các dịch vụ database, cache, R2, Reverb. Không polling tự động. Phép đo dịch vụ được dùng lại tối đa 15 giây, có thời điểm đo; kết quả là thời gian yêu cầu ứng dụng và không phải ping mạng thuần túy. Cần deploy backend có `GET /api/diagnostics` cùng frontend này; không cần biến môi trường mới.
 
+Lượt đo không gọi thêm `/auth/me`: server action đọc token từ cookie HTTP-only và để endpoint xác thực, xử lý token hết hạn bằng chuyển về đăng nhập rồi quay lại `/diagnostics`. Panel **Chi tiết lượt gọi API** hiển thị thời gian Laravel và số lượng/thời gian SQL của lượt gọi hiện tại, tách khỏi mẫu dịch vụ được cache; vẫn tương thích backend cũ chưa trả trường `request`.
+
 Kiểm tra bằng `npm run test:image-upload`, `node --test tests/diagnostics-actions.test.mjs`, `npm run typecheck` và `npm run build`.
 
 ## 32. Phí vận chuyển Hà Nội

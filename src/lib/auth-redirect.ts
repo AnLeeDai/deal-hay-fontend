@@ -2,6 +2,7 @@ const authReturnPrefixes = [
   "/sell",
   "/profile",
   "/discount-codes",
+  "/diagnostics",
   "/shops",
   "/notifications",
   "/chats",

@@ -1,16 +1,25 @@
 "use server"
 
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
+
 import { ApiError } from "@/api/client"
 import { getDiagnostics } from "@/api/diagnostics/queries"
-import { requireAuth } from "@/lib/auth"
+import { clearAuthCookies } from "@/lib/auth"
+import { getAuthPageHref } from "@/lib/auth-redirect"
+import { AUTH_TOKEN_COOKIE } from "@/lib/cookies"
 import type { DiagnosticsActionResult } from "@/types/diagnostics"
 
 export async function measureDiagnosticsAction(): Promise<DiagnosticsActionResult> {
-  await requireAuth("/diagnostics")
+  const token = (await cookies()).get(AUTH_TOKEN_COOKIE)?.value
+  const signInHref = getAuthPageHref("/sign-in", "/diagnostics")
+  if (!token) redirect(signInHref)
 
   try {
     const startedAt = performance.now()
-    const data = await getDiagnostics()
+    // The protected API validates this token; fetching /auth/me first adds a
+    // second round trip without making this request's authorization stronger.
+    const data = await getDiagnostics(token)
 
     return {
       success: true,
@@ -20,6 +29,11 @@ export async function measureDiagnosticsAction(): Promise<DiagnosticsActionResul
       },
     }
   } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      await clearAuthCookies()
+      redirect(signInHref)
+    }
+
     return {
       success: false,
       message:
