@@ -36,7 +36,8 @@ import {
   runUploadAction,
 } from "@/lib/form-utils"
 import { IMAGE_UPLOAD_ACCEPT } from "@/lib/validation"
-import { prepareImageUploads } from "@/lib/image-upload"
+import { ImageUploadProgress } from "@/components/image-upload-progress"
+import { useImageUpload } from "@/hooks/use-image-upload"
 import type { User } from "@/types/auth"
 import {
   updateAvatarAction,
@@ -242,6 +243,7 @@ function PasswordForm() {
 
 function AvatarForm() {
   const [isPending, startTransition] = useTransition()
+  const { prepareUploads, uploadProgress } = useImageUpload()
   const form = useForm<z.infer<typeof avatarSchema>>({
     resolver: zodResolver(avatarSchema),
     defaultValues: {
@@ -255,7 +257,7 @@ function AvatarForm() {
 
     startTransition(async () => {
       const state = await runUploadAction(async () =>
-        updateAvatarAction(await prepareImageUploads(formData, "avatar"))
+        updateAvatarAction(await prepareUploads(formData, "avatar"))
       )
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
 
@@ -305,6 +307,7 @@ function AvatarForm() {
             </FormItem>
           )}
         />
+        <ImageUploadProgress progress={isPending ? uploadProgress : null} />
         <FormSubmitButton
           idleText="Cập nhật avatar"
           pending={isPending}

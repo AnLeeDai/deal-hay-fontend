@@ -87,7 +87,8 @@ import {
 } from "@/lib/form-utils"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { IMAGE_UPLOAD_ACCEPT } from "@/lib/validation"
-import { prepareImageUploads } from "@/lib/image-upload"
+import { ImageUploadProgress } from "@/components/image-upload-progress"
+import { useImageUpload } from "@/hooks/use-image-upload"
 import type { User } from "@/types/auth"
 import type {
   InventoryMovement,
@@ -375,6 +376,7 @@ function ReviewReplyForm({ review }: { review: ShopProductReview }) {
 
 function ShopAvatarForm({ user }: { user: User }) {
   const [isPending, startTransition] = useTransition()
+  const { prepareUploads, uploadProgress } = useImageUpload()
   const form = useForm<AvatarValues>({
     resolver: zodResolver(avatarSchema),
     defaultValues: { avatar: undefined },
@@ -386,7 +388,7 @@ function ShopAvatarForm({ user }: { user: User }) {
 
     startTransition(async () => {
       const state = await runUploadAction(async () =>
-        updateShopAvatarAction(await prepareImageUploads(formData, "avatar"))
+        updateShopAvatarAction(await prepareUploads(formData, "avatar"))
       )
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
 
@@ -443,6 +445,7 @@ function ShopAvatarForm({ user }: { user: User }) {
               </FormItem>
             )}
           />
+          <ImageUploadProgress progress={isPending ? uploadProgress : null} />
           <FormSubmitButton
             idleText="Cập nhật ảnh shop"
             pending={isPending}

@@ -121,18 +121,6 @@ export const createProductSchema = z
         path: ["old_price"],
         message: "Giá gốc phải lớn hơn giá ưu đãi.",
       })
-    const totalImageBytes = [value.image, ...value.gallery_images].reduce(
-      (total, file) => total + file.size,
-      0
-    )
-    if (totalImageBytes > PRODUCT_IMAGES_UPLOAD_MAX_BYTES) {
-      context.addIssue({
-        code: "custom",
-        path: ["gallery_images"],
-        message: "Tổng dung lượng ảnh sản phẩm không được vượt quá 32 MB.",
-      })
-    }
-
     if (!value.has_variants) return
 
     const catalog = validateProductOptions(value.options)
@@ -185,6 +173,24 @@ export const createProductSchema = z
       })
     }
   })
+
+// Enforce transport size after browser preparation, so camera batches are not
+// rejected solely because their original files add up to more than 32 MB.
+export const createProductUploadSchema = createProductSchema.superRefine(
+  (value, context) => {
+    const totalImageBytes = [value.image, ...value.gallery_images].reduce(
+      (total, file) => total + file.size,
+      0
+    )
+    if (totalImageBytes > PRODUCT_IMAGES_UPLOAD_MAX_BYTES) {
+      context.addIssue({
+        code: "custom",
+        path: ["gallery_images"],
+        message: "Tổng dung lượng ảnh sản phẩm không được vượt quá 32 MB.",
+      })
+    }
+  }
+)
 
 export const adjustInventorySchema = z.object({
   quantity_delta: z

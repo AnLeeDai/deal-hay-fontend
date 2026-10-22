@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import {
+  ActivityIcon,
   BellIcon,
   HouseIcon,
   LayoutDashboardIcon,
@@ -33,6 +34,7 @@ import type { User } from "@/types/auth"
 
 const publicItems = [
   { href: "/", label: "Khám phá sản phẩm", icon: HouseIcon },
+  { href: "/diagnostics", label: "Độ trễ", icon: ActivityIcon },
   {
     href: "/chats",
     label: "Tin nhắn",

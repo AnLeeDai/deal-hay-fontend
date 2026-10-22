@@ -45,7 +45,8 @@ import {
   runUploadAction,
 } from "@/lib/form-utils"
 import { IMAGE_UPLOAD_ACCEPT } from "@/lib/validation"
-import { prepareImageUploads } from "@/lib/image-upload"
+import { ImageUploadProgress } from "@/components/image-upload-progress"
+import { useImageUpload } from "@/hooks/use-image-upload"
 import { formatCurrency } from "@/lib/format"
 import {
   deleteReviewAction,
@@ -73,6 +74,7 @@ function ReviewProductForm({
   productSlug: string
 }) {
   const [isPending, startTransition] = useTransition()
+  const { prepareUploads, uploadProgress } = useImageUpload()
   const form = useForm<ReviewProductValues>({
     resolver: zodResolver(reviewProductSchema),
     defaultValues: { reaction: "like", content: "", image: undefined },
@@ -89,7 +91,7 @@ function ReviewProductForm({
         reviewProductAction(
           shopCode,
           productSlug,
-          await prepareImageUploads(formData, "review")
+          await prepareUploads(formData, "review")
         )
       )
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
@@ -174,6 +176,7 @@ function ReviewProductForm({
             </FormItem>
           )}
         />
+        <ImageUploadProgress progress={isPending ? uploadProgress : null} />
         <FormSubmitButton
           className="w-full"
           idleText="Gửi đánh giá"

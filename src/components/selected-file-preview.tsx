@@ -14,6 +14,7 @@ import {
   AttachmentTitle,
 } from "@/components/ui/attachment"
 import { cn } from "@/lib/utils"
+import { createImagePreview } from "@/lib/image-upload"
 
 type ObjectUrlState = {
   file: File
@@ -27,14 +28,21 @@ function useImageObjectUrl(file: File): string | null {
   useEffect(() => {
     if (!isImage) return
 
-    const url = URL.createObjectURL(file)
-    const frame = window.requestAnimationFrame(() => {
-      setPreview({ file, url })
-    })
+    const controller = new AbortController()
+    let url: string | undefined
+    void createImagePreview(file, controller.signal)
+      .then((thumbnail) => {
+        if (controller.signal.aborted) return
+        url = URL.createObjectURL(thumbnail)
+        setPreview({ file, url })
+      })
+      .catch(() => {
+        // The file name and icon remain available if preview decoding fails.
+      })
 
     return () => {
-      window.cancelAnimationFrame(frame)
-      URL.revokeObjectURL(url)
+      controller.abort()
+      if (url) URL.revokeObjectURL(url)
     }
   }, [file, isImage])
 
@@ -96,7 +104,7 @@ export function SelectedFilePreview({
               src={imageUrl}
             />
           ) : (
-            <ImageIcon className="animate-pulse" />
+            <ImageIcon />
           )
         ) : (
           <FileIcon />

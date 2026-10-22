@@ -21,6 +21,7 @@ import { UserAvatar } from "@/components/user-avatar"
 
 const navigation = [
   { href: "/", label: "Khám phá" },
+  { href: "/diagnostics", label: "Độ trễ" },
   { href: "/chats", label: "Tin nhắn", unreadKey: "messages" },
   {
     href: "/notifications",

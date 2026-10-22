@@ -36,7 +36,8 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { applyServerErrors, runUploadAction } from "@/lib/form-utils"
 import { IMAGE_UPLOAD_ACCEPT } from "@/lib/validation"
-import { prepareImageUploads } from "@/lib/image-upload"
+import { ImageUploadProgress } from "@/components/image-upload-progress"
+import { useImageUpload } from "@/hooks/use-image-upload"
 import type { ShopCategory } from "@/types/shop"
 import { createProductAction } from "@/modules/shop-management/actions"
 import {
@@ -105,6 +106,7 @@ export function CreateProductForm({
   categories: ShopCategory[]
 }) {
   const [isPending, startTransition] = useTransition()
+  const { prepareUploads, uploadProgress } = useImageUpload()
   const form = useForm<CreateProductValues>({
     resolver: zodResolver(createProductSchema),
     defaultValues: initialProductValues(categories),
@@ -202,7 +204,7 @@ export function CreateProductForm({
 
     startTransition(async () => {
       const state = await runUploadAction(async () =>
-        createProductAction(await prepareImageUploads(formData, "product"))
+        createProductAction(await prepareUploads(formData, "product"))
       )
       const hasFieldErrors = applyServerErrors(
         productFormErrors(state.errors),
@@ -451,8 +453,9 @@ export function CreateProductForm({
                     />
                   </FormControl>
                   <FormDescription>
-                    Đã chọn {value.length}/50 ảnh bổ sung. Mỗi ảnh tối đa 30 MB;
-                    tổng dung lượng ảnh sản phẩm tối đa 32 MB.
+                    Đã chọn {value.length}/50 ảnh bổ sung. Mỗi ảnh gốc tối đa 30
+                    MB. Ảnh được thu nhỏ trước khi tải; tổng ảnh sau xử lý tối
+                    đa 32 MB.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -802,6 +805,7 @@ export function CreateProductForm({
           )}
         </section>
 
+        <ImageUploadProgress progress={isPending ? uploadProgress : null} />
         <FormSubmitButton
           className="w-full sm:w-auto"
           disabled={categories.length === 0}

@@ -31,7 +31,8 @@ import {
   CHAT_ATTACHMENT_ACCEPT,
   chatAttachmentFileSchema,
 } from "@/lib/validation"
-import { prepareImageUploads } from "@/lib/image-upload"
+import { ImageUploadProgress } from "@/components/image-upload-progress"
+import { useImageUpload } from "@/hooks/use-image-upload"
 import { sendMessageAction } from "@/modules/chats/actions"
 import { ChatEmojiPicker } from "@/modules/chats/components/chat-emoji-picker"
 import { ChatReplyPreview } from "@/modules/chats/components/chat-reply-preview"
@@ -55,6 +56,7 @@ export function ChatComposer({
   onSent: (message: ChatMessage, replyToId?: string | null) => void
 }) {
   const [isPending, startTransition] = useTransition()
+  const { prepareUploads, uploadProgress } = useImageUpload()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const form = useForm<SendMessageValues>({
@@ -134,7 +136,7 @@ export function ChatComposer({
       const state = await runUploadAction(async () =>
         sendMessageAction(
           conversationSlug,
-          await prepareImageUploads(formData, "chat")
+          await prepareUploads(formData, "chat")
         )
       )
       const hasFieldErrors = applyServerErrors(state.errors, form.setError)
@@ -185,6 +187,7 @@ export function ChatComposer({
             }
           />
         ) : null}
+        <ImageUploadProgress progress={isPending ? uploadProgress : null} />
         <FormField
           control={form.control}
           name="body"

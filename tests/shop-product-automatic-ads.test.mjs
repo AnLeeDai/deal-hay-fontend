@@ -131,6 +131,57 @@ test("discounts still require an original price above the sale price", () => {
   assert.ok(parsed.error.issues.some((issue) => issue.path[0] === "old_price"))
 })
 
+test("camera image batches larger than 32 MB can be prepared before upload", () => {
+  const cameraImage = new File(
+    [new Uint8Array(17 * 1024 * 1024)],
+    "camera.jpg",
+    { type: "image/jpeg" }
+  )
+
+  const parsed = createProductSchema.safeParse(
+    productDraft({ image: cameraImage, gallery_images: [cameraImage] })
+  )
+
+  assert.equal(parsed.success, true)
+})
+
+test("source image preparation still rejects files above 30 MB and galleries above 50 images", () => {
+  const oversized = new File(
+    [new Uint8Array(30 * 1024 * 1024 + 1)],
+    "large.jpg",
+    { type: "image/jpeg" }
+  )
+  assert.equal(
+    createProductSchema.safeParse(productDraft({ image: oversized })).success,
+    false
+  )
+  const image = productDraft().image
+  assert.equal(
+    createProductSchema.safeParse(
+      productDraft({ gallery_images: Array(51).fill(image) })
+    ).success,
+    false
+  )
+})
+
+test("the server action still rejects combined image payloads above 32 MB", async () => {
+  const cameraImage = new File(
+    [new Uint8Array(17 * 1024 * 1024)],
+    "camera.jpg",
+    { type: "image/jpeg" }
+  )
+  const form = productFormData({ image: cameraImage })
+  form.append("gallery_images", cameraImage)
+
+  const result = await actions.createProductAction(form)
+
+  assert.equal(result.success, false)
+  assert.deepEqual(result.errors.gallery_images, [
+    "Tổng dung lượng ảnh sản phẩm không được vượt quá 32 MB.",
+  ])
+  assert.equal(state.calls.length, 0)
+})
+
 test("discounted product creation forwards product media and ignores manual ad fields", async () => {
   const form = productFormData({ video_url: "https://example.com/product.mp4" })
   form.set("advertisement_video_url", "https://example.com/manual-ad.mp4")

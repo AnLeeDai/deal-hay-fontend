@@ -14,7 +14,8 @@
     "test:admin-login": "node tests/admin-login-verification.test.mjs",
     "test:product-price": "node --test tests/product-display-price.test.mjs src/modules/public/lib/variant-selection.test.mjs",
     "test:realtime": "node tests/realtime-chat-state.test.mjs",
-    "test:chat-image": "node tests/chat-image-send.test.mjs"
+    "test:chat-image": "node tests/chat-image-send.test.mjs",
+    "test:image-upload": "node --test tests/image-upload.test.mjs tests/shop-product-automatic-ads.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

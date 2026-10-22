@@ -923,6 +923,14 @@ Theo [chính sách phần thưởng Google](https://support.google.com/admanager
 
 Chạy `npm run test:ads` để kiểm tra lựa chọn cookie, script singleton, cấu hình tài khoản và vòng đời rewarded ads; các kiểm thử mô phỏng GPT và không phát sinh quảng cáo thật.
 
+## Upload ảnh trên cấu hình nhỏ và trang Độ trễ
+
+Ảnh được thu nhỏ ngay trên trình duyệt, mỗi lần chỉ giải mã một ảnh và gửi tối đa hai ảnh đồng thời. Tiến độ dùng số byte thực của XHR, hiển thị theo từng ảnh và cả đợt; bước lưu nội dung được ghi riêng để tránh hiểu phần trăm gửi ảnh là đã lưu xong. Thumbnail được thu nhỏ trước khi hiển thị nhiều ảnh camera. Mỗi sản phẩm vẫn tối đa 50 ảnh bổ sung, mỗi ảnh gốc tối đa 30 MB; giới hạn tổng payload áp dụng sau chuẩn hóa.
+
+Liên kết **Độ trễ** trên header/menu mobile mở `/diagnostics` sau khi đăng nhập. Bấm đo để xem thời gian trình duyệt/Next.js/API và các dịch vụ database, cache, R2, Reverb. Không polling tự động. Phép đo dịch vụ được dùng lại tối đa 15 giây, có thời điểm đo; kết quả là thời gian yêu cầu ứng dụng và không phải ping mạng thuần túy. Cần deploy backend có `GET /api/diagnostics` cùng frontend này; không cần biến môi trường mới.
+
+Kiểm tra bằng `npm run test:image-upload`, `node --test tests/diagnostics-actions.test.mjs`, `npm run typecheck` và `npm run build`.
+
 ## 32. Phí vận chuyển Hà Nội
 
 Chủ shop cấu hình tại **Kênh người bán → Cửa hàng → Phí vận chuyển Hà Nội**. Có thể nhập phí mặc định và mức riêng cho từng phường/xã; mức riêng thay thế phí mặc định. Tính năng mặc định tắt và chỉ tính phí sau khi shop lưu cấu hình, bật áp dụng.

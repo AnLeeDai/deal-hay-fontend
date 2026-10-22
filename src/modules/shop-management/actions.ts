@@ -23,7 +23,7 @@ import {
 import {
   adjustInventorySchema,
   createCouponSchema,
-  createProductSchema,
+  createProductUploadSchema,
   replyReviewSchema,
   type AdjustInventoryValues,
   type CreateCouponValues,
@@ -81,7 +81,7 @@ export async function createProductAction(
     }
   }
 
-  const parsed = createProductSchema.safeParse({
+  const parsed = createProductUploadSchema.safeParse({
     name: formData.get("name"),
     category: formData.get("category"),
     price: Number(formData.get("price")),
