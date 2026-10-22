@@ -1,3 +1,4 @@
+import { productCheckoutHref } from "@/modules/public/lib/product-checkout"
 import type { ProductDiscountCode } from "@/types/discount-code"
 
 export function discountCodeUnitPrice(
@@ -90,5 +91,7 @@ export function discountCodeCanBeSaved(
 }
 
 export function discountCodeProductHref(code: ProductDiscountCode): string {
-  return `/shops/${encodeURIComponent(code.product.shop.code)}/products/${encodeURIComponent(code.product.slug)}?discount_code=${encodeURIComponent(code.code)}`
+  return productCheckoutHref(code.product.shop.code, code.product.slug, {
+    discountCode: code.code,
+  })
 }

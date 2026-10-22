@@ -3,23 +3,35 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import ts from "typescript"
 
-const { outputText } = ts.transpileModule(
-  readFileSync(
-    new URL(
-      "../src/modules/discount-codes/lib/discount-codes.ts",
-      import.meta.url
-    ),
-    "utf8"
-  ),
-  {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2022,
-    },
-  }
+function transpile(relativePath, imports = {}) {
+  const { outputText } = ts.transpileModule(
+    readFileSync(new URL(relativePath, import.meta.url), "utf8"),
+    {
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+      },
+    }
+  )
+  const source = outputText.replace(
+    /from (["'])([^"']+)\1/g,
+    (_, quote, specifier) => {
+      assert.ok(imports[specifier], `Unexpected import: ${specifier}`)
+      return `from ${quote}${imports[specifier]}${quote}`
+    }
+  )
+  return `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
+}
+
+const variantsUrl = transpile("../src/modules/public/lib/variant-selection.ts")
+const checkoutNavigationUrl = transpile(
+  "../src/modules/public/lib/product-checkout.ts",
+  { "@/modules/public/lib/variant-selection": variantsUrl }
 )
 const { discountCodeUnitPrice, summarizeDiscountCodes } = await import(
-  `data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`
+  transpile("../src/modules/discount-codes/lib/discount-codes.ts", {
+    "@/modules/public/lib/product-checkout": checkoutNavigationUrl,
+  })
 )
 
 function reward(id, amount, overrides = {}) {

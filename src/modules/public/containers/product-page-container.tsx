@@ -37,10 +37,12 @@ export async function ProductPageContainer({
   shopUserCode,
   productSlug,
   initialDiscountCode,
+  initialVariantId,
 }: {
   shopUserCode: string
   productSlug: string
   initialDiscountCode?: string
+  initialVariantId?: string
 }) {
   let data
 
@@ -88,6 +90,7 @@ export async function ProductPageContainer({
           canReview={data.canReview}
           hasReview={Boolean(data.viewerReview)}
           initialDiscountCode={initialDiscountCode}
+          initialVariantId={initialVariantId}
         />
       </section>
 

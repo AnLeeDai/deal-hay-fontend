@@ -31,6 +31,7 @@ export function ShippingRewardOffer({
   onCodeReceived,
   onRedeemingChange,
   onAdVisibleChange,
+  returnTo,
 }: {
   shopCode: string
   productSlug: string
@@ -39,6 +40,7 @@ export function ShippingRewardOffer({
   onCodeReceived: (code: ShippingDiscountCode) => void
   onRedeemingChange: (pending: boolean) => void
   onAdVisibleChange: (visible: boolean) => void
+  returnTo?: string
 }) {
   const [offer, setOffer] = useState<ShippingOffer | null>(null)
   const [earnedView, setEarnedView] = useState<ShippingRewardView | null>(null)
@@ -309,7 +311,8 @@ export function ShippingRewardOffer({
               className="text-sm text-primary underline"
               href={getAuthPageHref(
                 "/sign-in",
-                `/shops/${encodeURIComponent(shopCode)}/products/${encodeURIComponent(productSlug)}`
+                returnTo ??
+                  `/shops/${encodeURIComponent(shopCode)}/products/${encodeURIComponent(productSlug)}`
               )}
             >
               Đăng nhập để nhận mã

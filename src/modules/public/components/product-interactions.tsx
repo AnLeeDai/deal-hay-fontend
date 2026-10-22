@@ -1,13 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   BadgeCheckIcon,
   HeartIcon,
-  LoaderCircleIcon,
   PackageCheckIcon,
   PaperclipIcon,
   ThumbsDownIcon,
@@ -53,7 +51,6 @@ import {
   deleteReviewAction,
   reactShopAction,
   reviewProductAction,
-  startChatAction,
   toggleFollowAction,
 } from "@/modules/public/actions"
 import {
@@ -65,8 +62,8 @@ import {
   selectProductVariant,
   variantHasOption,
 } from "@/modules/public/lib/variant-selection"
+import { productCheckoutHref } from "@/modules/public/lib/product-checkout"
 import type { PublicProduct, PublicShop } from "@/types/catalog"
-import { ProductOrderDialog } from "@/modules/public/components/product-order-dialog"
 
 function ReviewProductForm({
   shopCode,
@@ -194,19 +191,21 @@ export function ProductInteractions({
   canReview = false,
   hasReview = false,
   initialDiscountCode,
+  initialVariantId,
 }: {
   shop: PublicShop
   product: PublicProduct
   canReview?: boolean
   hasReview?: boolean
   initialDiscountCode?: string
+  initialVariantId?: string
 }) {
   const [isPending, startTransition] = useTransition()
-  const [isChatPending, startChatTransition] = useTransition()
-  const [orderOpen, setOrderOpen] = useState(Boolean(initialDiscountCode))
-  const router = useRouter()
   const [selectedVariantId, setSelectedVariantId] = useState(
-    () => defaultProductVariant(product.variants)?.id
+    () =>
+      product.variants.find(
+        (variant) => variant.id === initialVariantId && variant.is_active
+      )?.id ?? defaultProductVariant(product.variants)?.id
   )
   const hasVariants = product.has_variants || product.variants.length > 0
   const selectedVariant = hasVariants
@@ -238,34 +237,6 @@ export function ProductInteractions({
         toast.error(errorMessage)
       }
     })
-
-  const openProductChat = () => {
-    if (!shop.viewer.can_interact) {
-      toast.error("Tài khoản hiện tại không thể nhắn tin cho cửa hàng này.")
-      return
-    }
-
-    if (hasVariants && !selectedVariant) {
-      toast.error("Sản phẩm chưa có biến thể đang bán để tư vấn.")
-      return
-    }
-
-    startChatTransition(async () => {
-      const state = await startChatAction(
-        shop.code,
-        product.id,
-        selectedVariant?.id
-      )
-
-      if (state.success && state.data) {
-        toast.success(state.message)
-        router.push(`/chats/${encodeURIComponent(state.data.conversationSlug)}`)
-        return
-      }
-
-      toast.error(state.message || "Không thể mở cuộc trò chuyện với cửa hàng.")
-    })
-  }
 
   return (
     <div className="space-y-4 lg:sticky lg:top-28">
@@ -326,7 +297,7 @@ export function ProductInteractions({
                         <Button
                           key={value}
                           aria-pressed={isSelected}
-                          disabled={!candidate || isChatPending}
+                          disabled={!candidate}
                           type="button"
                           variant={isSelected ? "default" : "outline"}
                           onClick={() => setSelectedVariantId(candidate?.id)}
@@ -353,7 +324,6 @@ export function ProductInteractions({
                   <Button
                     key={variant.id}
                     aria-pressed={selectedVariant?.id === variant.id}
-                    disabled={isChatPending}
                     type="button"
                     variant={
                       selectedVariant?.id === variant.id ? "default" : "outline"
@@ -378,19 +348,21 @@ export function ProductInteractions({
             className="w-full"
             disabled={
               isPending ||
-              isChatPending ||
               displayedStock < 1 ||
               (hasVariants && !selectedVariant)
             }
+            nativeButton={false}
+            render={
+              <Link
+                href={productCheckoutHref(shop.code, product.slug, {
+                  variantId: selectedVariant?.id,
+                  discountCode: initialDiscountCode,
+                })}
+              />
+            }
             size="lg"
-            onClick={() => setOrderOpen(true)}
           >
-            {isChatPending ? (
-              <LoaderCircleIcon className="animate-spin" />
-            ) : (
-              <ShoppingBagIcon />
-            )}
-            {isChatPending ? "Đang mở cuộc trò chuyện..." : "Đặt hàng"}
+            <ShoppingBagIcon /> Đặt hàng
           </Button>
 
           <Separator />
@@ -507,19 +479,6 @@ export function ProductInteractions({
           </Button>
         </CardContent>
       </Card>
-      <ProductOrderDialog
-        key={`${product.id}:${selectedVariant?.id ?? "base"}`}
-        open={orderOpen}
-        onOpenChange={setOrderOpen}
-        shop={shop}
-        product={product}
-        variant={selectedVariant}
-        regularPrice={regularPrice}
-        stock={displayedStock}
-        onMessage={openProductChat}
-        messagePending={isChatPending}
-        initialDiscountCode={initialDiscountCode}
-      />
     </div>
   )
 }

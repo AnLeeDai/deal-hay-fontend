@@ -52,6 +52,7 @@ test("wallet and saved-product links survive authentication", () => {
     "/discount-codes",
     "/discount-codes?status=available",
     "/shops/SHOP-1/products/ao-thun?discount_code=DH-EXAMPLE",
+    "/shops/SHOP-1/products/ao-thun/checkout?variant_id=red-small&discount_code=DH-A%26B",
   ]) {
     assert.equal(getSafeAuthRedirect(path), path)
     assert.equal(
@@ -62,6 +63,19 @@ test("wallet and saved-product links survive authentication", () => {
       path
     )
   }
+})
+
+test("authenticated sign-in returns to checkout with the selected variant and coupon", () => {
+  const path =
+    "/shops/SHOP-1/products/ao-thun/checkout?variant_id=red-small&discount_code=DH-A%26B"
+  const response = proxy(
+    request(getAuthPageHref("/sign-in", path), {
+      auth_token: "session",
+      auth_role: "customer",
+    })
+  )
+  assert.equal(response.status, 307)
+  assert.equal(response.url, new URL(path, "https://deal-hay.local").href)
 })
 
 test("wallet access sends guests to sign-in with their destination", () => {

@@ -62,12 +62,21 @@ const wallet = await import(
   })
 )
 const { state } = await import(apiUrl)
+const variantsUrl = transpileModule(
+  "../src/modules/public/lib/variant-selection.ts"
+)
+const checkoutNavigationUrl = transpileModule(
+  "../src/modules/public/lib/product-checkout.ts",
+  { "@/modules/public/lib/variant-selection": variantsUrl }
+)
 const {
   discountCodeUnitPrice,
   discountCodeCanBeSaved,
   discountCodeProductHref,
 } = await import(
-  transpileModule("../src/modules/discount-codes/lib/discount-codes.ts")
+  transpileModule("../src/modules/discount-codes/lib/discount-codes.ts", {
+    "@/modules/public/lib/product-checkout": checkoutNavigationUrl,
+  })
 )
 const reward = { id: "reward-id", code: "DH-REALCODE", is_available: true }
 
@@ -359,6 +368,6 @@ test("wallet use links retain the actual coupon and encode product route segment
       code: "DH-A&B",
       product: { slug: "ao/thun", shop: { code: "SHOP 1" } },
     }),
-    "/shops/SHOP%201/products/ao%2Fthun?discount_code=DH-A%26B"
+    "/shops/SHOP%201/products/ao%2Fthun/checkout?discount_code=DH-A%26B"
   )
 })
