@@ -9,7 +9,7 @@ import { MediaImage } from "@/components/media-image"
 import { EmptyState } from "@/components/layout/empty-state"
 import { PageHeader } from "@/components/layout/page-header"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { formatDate } from "@/lib/format"
 import {
@@ -76,9 +76,9 @@ export function DiscountCodesPageClient({
           title="Bạn chưa có mã giảm giá"
           description="Các mã giảm giá của bạn sẽ xuất hiện tại đây để lưu và dùng cho lần mua tiếp theo."
           action={
-            <Button nativeButton={false} render={<Link href="/" />}>
+            <Link href="/" className={buttonVariants()}>
               Khám phá sản phẩm
-            </Button>
+            </Link>
           }
         />
       ) : (
@@ -148,12 +148,12 @@ export function DiscountCodesPageClient({
               </CardContent>
               <CardFooter className="gap-2 border-t p-4 sm:px-5">
                 {code.is_available ? (
-                  <Button
-                    nativeButton={false}
-                    render={<Link href={discountCodeProductHref(code)} />}
+                  <Link
+                    href={discountCodeProductHref(code)}
+                    className={buttonVariants()}
                   >
                     Dùng ngay
-                  </Button>
+                  </Link>
                 ) : discountCodeCanBeSaved(code) ? (
                   <Button
                     disabled={pending}

@@ -14,7 +14,7 @@ import { toast } from "sonner"
 
 import { EmptyState } from "@/components/layout/empty-state"
 import { MediaImage } from "@/components/media-image"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Item,
   ItemContent,
@@ -341,18 +341,15 @@ export function ChatMessageList({
                                 name={message.attachment.name}
                               />
                             ) : null}
-                            <Button
-                              className="max-w-full"
-                              nativeButton={false}
-                              render={
-                                <a
-                                  href={`/api/chat-attachments/${encodeURIComponent(message.id)}`}
-                                  rel="noreferrer"
-                                  target="_blank"
-                                />
-                              }
-                              size="sm"
-                              variant="outline"
+                            <a
+                              href={`/api/chat-attachments/${encodeURIComponent(message.id)}`}
+                              rel="noreferrer"
+                              target="_blank"
+                              className={buttonVariants({
+                                className: "max-w-full",
+                                size: "sm",
+                                variant: "outline",
+                              })}
                             >
                               {message.attachment.type === "image" ? (
                                 <PaperclipIcon />
@@ -362,7 +359,7 @@ export function ChatMessageList({
                               <span className="max-w-52 truncate">
                                 {message.attachment.name}
                               </span>
-                            </Button>
+                            </a>
                           </div>
                         ) : null}
                       </div>

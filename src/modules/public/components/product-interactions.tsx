@@ -19,7 +19,7 @@ import { FormSelect } from "@/components/form-select"
 import { FormSubmitButton } from "@/components/form-submit-button"
 import { SelectedFilePreview } from "@/components/selected-file-preview"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -344,26 +344,23 @@ export function ProductInteractions({
             </p>
           ) : null}
 
-          <Button
-            className="w-full"
-            disabled={
-              isPending ||
-              displayedStock < 1 ||
-              (hasVariants && !selectedVariant)
-            }
-            nativeButton={false}
-            render={
-              <Link
-                href={productCheckoutHref(shop.code, product.slug, {
-                  variantId: selectedVariant?.id,
-                  discountCode: initialDiscountCode,
-                })}
-              />
-            }
-            size="lg"
-          >
-            <ShoppingBagIcon /> Đặt hàng
-          </Button>
+          {isPending ||
+          displayedStock < 1 ||
+          (hasVariants && !selectedVariant) ? (
+            <Button className="w-full" disabled size="lg">
+              <ShoppingBagIcon /> Đặt hàng
+            </Button>
+          ) : (
+            <Link
+              className={buttonVariants({ className: "w-full", size: "lg" })}
+              href={productCheckoutHref(shop.code, product.slug, {
+                variantId: selectedVariant?.id,
+                discountCode: initialDiscountCode,
+              })}
+            >
+              <ShoppingBagIcon /> Đặt hàng
+            </Link>
+          )}
 
           <Separator />
 

@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { usePathname } from "next/navigation"
 
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 
 const items = [
@@ -26,14 +26,15 @@ export function AdminNavigation() {
     <ScrollArea className="w-full">
       <nav className="flex w-max gap-2 pb-3" aria-label="Điều hướng quản trị">
         {items.map((item) => (
-          <Button
+          <Link
             key={item.href}
-            nativeButton={false}
-            render={<Link href={item.href} />}
-            variant={pathname.startsWith(item.href) ? "default" : "outline"}
+            href={item.href}
+            className={buttonVariants({
+              variant: pathname.startsWith(item.href) ? "default" : "outline",
+            })}
           >
             <item.icon /> {item.label}
-          </Button>
+          </Link>
         ))}
       </nav>
       <ScrollBar orientation="horizontal" />

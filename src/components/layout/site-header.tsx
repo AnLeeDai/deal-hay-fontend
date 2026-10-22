@@ -15,7 +15,7 @@ import { NotificationSoundToggle } from "@/components/layout/notification-sound-
 import { SignOutButton } from "@/components/layout/sign-out-button"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { UnreadNavigationLink } from "@/components/layout/unread-count-badge"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { UserAvatar } from "@/components/user-avatar"
 
@@ -80,31 +80,28 @@ export async function SiteHeader() {
             />
           ))}
           {user ? (
-            <Button
-              nativeButton={false}
-              render={<Link href="/discount-codes" />}
-              variant="ghost"
+            <Link
+              href="/discount-codes"
+              className={buttonVariants({ variant: "ghost" })}
             >
               <TicketPercentIcon /> Mã giảm giá
-            </Button>
+            </Link>
           ) : null}
           {user?.role === "shop_owner" ? (
-            <Button
-              nativeButton={false}
-              render={<Link href="/shop-manage" />}
-              variant="ghost"
+            <Link
+              href="/shop-manage"
+              className={buttonVariants({ variant: "ghost" })}
             >
               <StoreIcon /> Kênh người bán
-            </Button>
+            </Link>
           ) : null}
           {user?.role === "administrator" ? (
-            <Button
-              nativeButton={false}
-              render={<Link href="/admin/users" />}
-              variant="ghost"
+            <Link
+              href="/admin/users"
+              className={buttonVariants({ variant: "ghost" })}
             >
               Quản trị
-            </Button>
+            </Link>
           ) : null}
         </nav>
 
@@ -113,11 +110,12 @@ export async function SiteHeader() {
           {user ? (
             <>
               <NotificationSoundToggle />
-              <Button
-                className="h-10 gap-2"
-                nativeButton={false}
-                render={<Link href="/profile" />}
-                variant="ghost"
+              <Link
+                href="/profile"
+                className={buttonVariants({
+                  className: "h-10 gap-2",
+                  variant: "ghost",
+                })}
               >
                 <UserAvatar
                   className="size-7"
@@ -126,21 +124,20 @@ export async function SiteHeader() {
                   src={user.avatar_url}
                 />
                 <span className="max-w-32 truncate">{user.full_name}</span>
-              </Button>
+              </Link>
               <SignOutButton />
             </>
           ) : (
             <>
-              <Button
-                nativeButton={false}
-                render={<Link href="/sign-in" />}
-                variant="ghost"
+              <Link
+                href="/sign-in"
+                className={buttonVariants({ variant: "ghost" })}
               >
                 Đăng nhập
-              </Button>
-              <Button nativeButton={false} render={<Link href="/sign-up" />}>
+              </Link>
+              <Link href="/sign-up" className={buttonVariants()}>
                 Tạo tài khoản
-              </Button>
+              </Link>
             </>
           )}
         </div>

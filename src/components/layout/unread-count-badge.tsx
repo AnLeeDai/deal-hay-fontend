@@ -4,7 +4,7 @@ import Link from "next/link"
 
 import { useRealtime } from "@/components/realtime-provider"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { type Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { UnreadCounts } from "@/types/auth"
 
@@ -57,16 +57,17 @@ export function UnreadNavigationLink({
   const count = kind ? unreadCounts[kind] : 0
 
   return (
-    <Button
+    <Link
+      href={href}
       aria-label={count > 0 ? `${label}, ${count} chưa đọc` : label}
-      className={className}
-      nativeButton={false}
-      render={<Link href={href} />}
-      size={size}
-      variant="ghost"
+      className={buttonVariants({
+        className: className,
+        size: size,
+        variant: "ghost",
+      })}
     >
       {children ?? label}
       <UnreadCountBadge className={badgeClassName} count={count} />
-    </Button>
+    </Link>
   )
 }

@@ -46,10 +46,7 @@ export function DataPagination({
       <PaginationContent>
         <PaginationItem>
           <PaginationPrevious
-            aria-disabled={currentPage <= 1}
-            className={
-              currentPage <= 1 ? "pointer-events-none opacity-50" : undefined
-            }
+            disabled={currentPage <= 1}
             href={hrefFor(Math.max(1, currentPage - 1))}
             text="Trước"
           />
@@ -69,12 +66,7 @@ export function DataPagination({
         ))}
         <PaginationItem>
           <PaginationNext
-            aria-disabled={currentPage >= lastPage}
-            className={
-              currentPage >= lastPage
-                ? "pointer-events-none opacity-50"
-                : undefined
-            }
+            disabled={currentPage >= lastPage}
             href={hrefFor(Math.min(lastPage, currentPage + 1))}
             text="Sau"
           />

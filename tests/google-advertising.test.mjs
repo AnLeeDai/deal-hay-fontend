@@ -67,6 +67,7 @@ const { StorefrontAdvertising } = await import(
   transpile("../src/components/storefront-advertising.tsx", {
     react: hooksUrl,
     "react/jsx-runtime": import.meta.resolve("react/jsx-runtime"),
+    "next/link": moduleUrl('export default "a"'),
     "@/components/ui/button": moduleUrl('export const Button = "button"'),
     "@/lib/google-adsense": adsenseUrl,
     "@/lib/advertising-consent": consentUrl,

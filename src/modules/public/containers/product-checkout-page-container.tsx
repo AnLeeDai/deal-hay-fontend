@@ -5,7 +5,7 @@ import { ArrowLeftIcon } from "lucide-react"
 import { ApiError } from "@/api/client"
 import { getProduct } from "@/api/catalog/queries"
 import { EmptyState } from "@/components/layout/empty-state"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { ProductCheckout } from "@/modules/public/components/product-checkout"
 import { resolveCheckoutVariant } from "@/modules/public/lib/product-checkout"
 
@@ -40,16 +40,12 @@ export async function ProductCheckoutPageContainer({
         title="Phân loại đã chọn không còn khả dụng"
         description="Cửa hàng đã thay đổi phân loại sản phẩm. Vui lòng chọn lại trước khi đặt hàng."
         action={
-          <Button
-            nativeButton={false}
-            render={
-              <Link
-                href={`/shops/${encodeURIComponent(shopUserCode)}/products/${encodeURIComponent(productSlug)}`}
-              />
-            }
+          <Link
+            href={`/shops/${encodeURIComponent(shopUserCode)}/products/${encodeURIComponent(productSlug)}`}
+            className={buttonVariants()}
           >
             <ArrowLeftIcon /> Chọn lại phân loại
-          </Button>
+          </Link>
         }
       />
     )

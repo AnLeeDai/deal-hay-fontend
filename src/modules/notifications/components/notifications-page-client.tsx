@@ -24,7 +24,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Form,
@@ -265,14 +265,12 @@ export function NotificationsPageClient({
           role="status"
         >
           <p className="text-sm">Có {newNotificationCount} thông báo mới.</p>
-          <Button
-            nativeButton={false}
-            render={<Link href="/notifications" />}
-            size="sm"
-            variant="outline"
+          <Link
+            href="/notifications"
+            className={buttonVariants({ size: "sm", variant: "outline" })}
           >
             Xem mới nhất
-          </Button>
+          </Link>
         </div>
       ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -305,14 +303,15 @@ export function NotificationsPageClient({
               </p>
               <div className="flex flex-wrap gap-3">
                 {notification.action_url ? (
-                  <Button
-                    nativeButton={false}
-                    render={<Link href={notification.action_url} />}
-                    size="sm"
-                    variant="outline"
+                  <Link
+                    href={notification.action_url}
+                    className={buttonVariants({
+                      size: "sm",
+                      variant: "outline",
+                    })}
                   >
                     <ExternalLinkIcon /> Xem chi tiết
-                  </Button>
+                  </Link>
                 ) : null}
                 {!notification.read_at ? (
                   <Button

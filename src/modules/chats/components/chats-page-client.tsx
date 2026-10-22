@@ -20,7 +20,7 @@ import { EmptyState } from "@/components/layout/empty-state"
 import { PageHeader } from "@/components/layout/page-header"
 import { useRealtime } from "@/components/realtime-provider"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { UserAvatar } from "@/components/user-avatar"
 import {
@@ -431,16 +431,17 @@ export function ChatsPageClient({
                 <>
                   <div className="flex shrink-0 items-center justify-between gap-3 border-b px-3 py-3 sm:px-4">
                     <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                      <Button
-                        className="lg:hidden"
-                        nativeButton={false}
-                        render={<Link href="/chats" />}
-                        size="icon-sm"
-                        variant="ghost"
+                      <Link
+                        href="/chats"
+                        className={buttonVariants({
+                          className: "lg:hidden",
+                          size: "icon-sm",
+                          variant: "ghost",
+                        })}
                       >
                         <ArrowLeftIcon />
                         <span className="sr-only">Quay lại danh sách</span>
-                      </Button>
+                      </Link>
                       <UserAvatar
                         name={activeConversation.counterpart.name}
                         size="lg"

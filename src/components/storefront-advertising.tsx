@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { initializeGoogleAdsense } from "@/lib/google-adsense"
@@ -118,9 +119,9 @@ export function StorefrontAdvertising({
             Google và các đối tác có thể dùng cookie, địa chỉ IP và thông tin
             trình duyệt để phân phối và đo lường quảng cáo. Bạn có thể thay đổi
             lựa chọn bất cứ lúc nào tại Tùy chọn cookie quảng cáo. Xem{" "}
-            <a className="text-primary underline" href="/privacy">
+            <Link className="text-primary underline" href="/privacy">
               Chính sách bảo mật
-            </a>
+            </Link>
             .
           </p>
           <div className="flex flex-wrap gap-2">

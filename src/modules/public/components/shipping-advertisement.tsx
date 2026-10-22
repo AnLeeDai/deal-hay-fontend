@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -57,9 +58,9 @@ export function ShippingAdvertisement({
             Để tải quảng cáo có thưởng, bạn cần đồng ý cookie quảng cáo. Google
             và đối tác có thể dùng cookie, địa chỉ IP và thông tin trình duyệt
             để phân phối và đo lường quảng cáo. Xem{" "}
-            <a href="/privacy" className="text-primary underline">
+            <Link href="/privacy" className="text-primary underline">
               Chính sách bảo mật
-            </a>
+            </Link>
             . Bạn vẫn có thể đặt hàng với phí vận chuyển thông thường nếu không
             xem quảng cáo.
           </p>

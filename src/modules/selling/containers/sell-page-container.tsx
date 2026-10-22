@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 
 import { getShopManage } from "@/api/profile/queries"
 import { PageHeader } from "@/components/layout/page-header"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -29,13 +29,12 @@ export async function SellPageContainer({ user }: { user: User }) {
           title="Đăng sản phẩm bán hàng"
           description="Thêm ảnh, giá và thông tin sản phẩm để đăng bán trên cửa hàng của bạn."
           actions={
-            <Button
-              nativeButton={false}
-              render={<Link href="/shop-manage" />}
-              variant="outline"
+            <Link
+              href="/shop-manage"
+              className={buttonVariants({ variant: "outline" })}
             >
               Quản lý cửa hàng
-            </Button>
+            </Link>
           }
         />
         <Card>

@@ -1,7 +1,8 @@
 import * as React from "react"
+import Link from "next/link"
 import { cn } from "cn"
 
-import { Button } from "@/components/ui/button"
+import { type Button, buttonVariants } from "@/components/ui/button"
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -39,29 +40,43 @@ function PaginationItem({ ...props }: React.ComponentProps<"li">) {
 
 type PaginationLinkProps = {
   isActive?: boolean
+  disabled?: boolean
 } & Pick<React.ComponentProps<typeof Button>, "size"> &
-  React.ComponentProps<"a">
+  React.ComponentProps<typeof Link>
 
 function PaginationLink({
   className,
   isActive,
+  disabled = false,
   size = "icon",
   ...props
 }: PaginationLinkProps) {
+  const linkClassName = cn(
+    buttonVariants({ variant: isActive ? "outline" : "ghost", size }),
+    className
+  )
+
+  if (disabled) {
+    return (
+      <span
+        role="link"
+        aria-disabled="true"
+        aria-label={props["aria-label"]}
+        data-slot="pagination-link"
+        className={cn(linkClassName, "pointer-events-none opacity-50")}
+      >
+        {props.children}
+      </span>
+    )
+  }
+
   return (
-    <Button
-      variant={isActive ? "outline" : "ghost"}
-      size={size}
-      className={cn(className)}
-      nativeButton={false}
-      render={
-        <a
-          aria-current={isActive ? "page" : undefined}
-          data-slot="pagination-link"
-          data-active={isActive}
-          {...props}
-        />
-      }
+    <Link
+      aria-current={isActive ? "page" : undefined}
+      data-slot="pagination-link"
+      data-active={isActive}
+      className={linkClassName}
+      {...props}
     />
   )
 }
@@ -73,7 +88,7 @@ function PaginationPrevious({
 }: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
   return (
     <PaginationLink
-      aria-label="Go to previous page"
+      aria-label="Trang trước"
       size="default"
       className={cn("pl-2!", className)}
       {...props}
@@ -91,7 +106,7 @@ function PaginationNext({
 }: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
   return (
     <PaginationLink
-      aria-label="Go to next page"
+      aria-label="Trang sau"
       size="default"
       className={cn("pr-2!", className)}
       {...props}

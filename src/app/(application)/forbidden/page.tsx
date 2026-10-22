@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ShieldXIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import {
   Empty,
   EmptyContent,
@@ -27,9 +27,9 @@ export default function ForbiddenPage() {
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button nativeButton={false} render={<Link href="/" />}>
+        <Link href="/" className={buttonVariants()}>
           Về trang chủ
-        </Button>
+        </Link>
       </EmptyContent>
     </Empty>
   )

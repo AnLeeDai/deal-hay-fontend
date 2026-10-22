@@ -50,7 +50,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import {
   Card,
@@ -1511,13 +1511,12 @@ export function ShopManagementClient({
             <Button onClick={openProductTab}>
               <PackageIcon /> Đăng sản phẩm
             </Button>
-            <Button
-              nativeButton={false}
-              render={<Link href={`/shops/${user.user_code}`} />}
-              variant="outline"
+            <Link
+              href={`/shops/${user.user_code}`}
+              className={buttonVariants({ variant: "outline" })}
             >
               <ExternalLinkIcon /> Xem cửa hàng
-            </Button>
+            </Link>
           </div>
         }
       />

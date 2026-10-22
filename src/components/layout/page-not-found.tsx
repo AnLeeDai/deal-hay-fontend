@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { SearchXIcon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import {
   Empty,
   EmptyContent,
@@ -25,9 +25,9 @@ export default function NotFound() {
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button nativeButton={false} render={<Link href="/" />}>
+        <Link href="/" className={buttonVariants()}>
           Quay lại trang chủ
-        </Button>
+        </Link>
       </EmptyContent>
     </Empty>
   )

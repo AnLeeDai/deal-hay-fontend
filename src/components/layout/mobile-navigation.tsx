@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import {
   BellIcon,
@@ -17,7 +18,7 @@ import { SignOutButton } from "@/components/layout/sign-out-button"
 import { NotificationSoundToggle } from "@/components/layout/notification-sound-toggle"
 import { UnreadCountBadge } from "@/components/layout/unread-count-badge"
 import { useRealtime } from "@/components/realtime-provider"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
@@ -48,9 +49,10 @@ const publicItems = [
 ] as const
 
 export function MobileNavigation({ user }: { user: User | null }) {
+  const [open, setOpen] = useState(false)
   const { unreadCounts } = useRealtime()
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         render={<Button aria-label="Mở menu" size="icon" variant="ghost" />}
       >
@@ -89,50 +91,58 @@ export function MobileNavigation({ user }: { user: User | null }) {
             const count = "unreadKey" in item ? unreadCounts[item.unreadKey] : 0
 
             return (
-              <Button
+              <Link
+                onNavigate={() => setOpen(false)}
+                href={item.href}
                 key={item.href}
                 aria-label={
                   count > 0 ? `${item.label}, ${count} chưa đọc` : item.label
                 }
-                className="justify-start"
-                nativeButton={false}
-                render={<Link href={item.href} />}
-                variant="ghost"
+                className={buttonVariants({
+                  className: "justify-start",
+                  variant: "ghost",
+                })}
               >
                 <item.icon /> {item.label}
                 <UnreadCountBadge className="ml-auto" count={count} />
-              </Button>
+              </Link>
             )
           })}
           {user ? (
-            <Button
-              className="justify-start"
-              nativeButton={false}
-              render={<Link href="/discount-codes" />}
-              variant="ghost"
+            <Link
+              onNavigate={() => setOpen(false)}
+              href="/discount-codes"
+              className={buttonVariants({
+                className: "justify-start",
+                variant: "ghost",
+              })}
             >
               <TicketPercentIcon /> Mã giảm giá của tôi
-            </Button>
+            </Link>
           ) : null}
           {user?.role === "shop_owner" ? (
-            <Button
-              className="justify-start"
-              nativeButton={false}
-              render={<Link href="/shop-manage" />}
-              variant="ghost"
+            <Link
+              onNavigate={() => setOpen(false)}
+              href="/shop-manage"
+              className={buttonVariants({
+                className: "justify-start",
+                variant: "ghost",
+              })}
             >
               <StoreIcon /> Kênh người bán
-            </Button>
+            </Link>
           ) : null}
           {user?.role === "administrator" ? (
-            <Button
-              className="justify-start"
-              nativeButton={false}
-              render={<Link href="/admin/users" />}
-              variant="ghost"
+            <Link
+              onNavigate={() => setOpen(false)}
+              href="/admin/users"
+              className={buttonVariants({
+                className: "justify-start",
+                variant: "ghost",
+              })}
             >
               <LayoutDashboardIcon /> Trung tâm quản trị
-            </Button>
+            </Link>
           ) : null}
         </nav>
 
@@ -152,16 +162,20 @@ export function MobileNavigation({ user }: { user: User | null }) {
             <SignOutButton className="w-full" />
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              <Button
-                nativeButton={false}
-                render={<Link href="/sign-in" />}
-                variant="outline"
+              <Link
+                onNavigate={() => setOpen(false)}
+                href="/sign-in"
+                className={buttonVariants({ variant: "outline" })}
               >
                 Đăng nhập
-              </Button>
-              <Button nativeButton={false} render={<Link href="/sign-up" />}>
+              </Link>
+              <Link
+                onNavigate={() => setOpen(false)}
+                href="/sign-up"
+                className={buttonVariants()}
+              >
                 Đăng ký
-              </Button>
+              </Link>
             </div>
           )}
         </div>

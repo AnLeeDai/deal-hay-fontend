@@ -13,7 +13,7 @@ import {
 import { getHome } from "@/api/catalog/queries"
 import { EmptyState } from "@/components/layout/empty-state"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import {
   Card,
   CardAction,
@@ -55,22 +55,20 @@ export async function HomePageContainer({ category }: { category?: string }) {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button
-                nativeButton={false}
-                render={<Link href="#san-pham" />}
-                size="lg"
-              >
+              <Link href="#san-pham" className={buttonVariants({ size: "lg" })}>
                 Khám phá sản phẩm <ArrowRightIcon data-icon="inline-end" />
-              </Button>
-              <Button
-                className="border-background/20 bg-background/5 text-background hover:bg-background/10 hover:text-background"
-                nativeButton={false}
-                render={<Link href="/sell" />}
-                size="lg"
-                variant="outline"
+              </Link>
+              <Link
+                href="/sell"
+                className={buttonVariants({
+                  className:
+                    "border-background/20 bg-background/5 text-background hover:bg-background/10 hover:text-background",
+                  size: "lg",
+                  variant: "outline",
+                })}
               >
                 Bắt đầu bán hàng
-              </Button>
+              </Link>
             </div>
           </div>
 
@@ -128,24 +126,24 @@ export async function HomePageContainer({ category }: { category?: string }) {
         </div>
         <Card size="sm">
           <CardContent className="flex-row flex-wrap">
-            <Button
-              nativeButton={false}
-              render={<Link href="/" />}
-              variant={!activeCategory ? "default" : "outline"}
+            <Link
+              href="/"
+              className={buttonVariants({
+                variant: !activeCategory ? "default" : "outline",
+              })}
             >
               <PackageSearchIcon /> Tất cả
-            </Button>
+            </Link>
             {data.categories.map((item) => (
-              <Button
+              <Link
                 key={item}
-                nativeButton={false}
-                render={
-                  <Link href={`/?category=${encodeURIComponent(item)}`} />
-                }
-                variant={activeCategory === item ? "default" : "outline"}
+                href={`/?category=${encodeURIComponent(item)}`}
+                className={buttonVariants({
+                  variant: activeCategory === item ? "default" : "outline",
+                })}
               >
                 {item}
-              </Button>
+              </Link>
             ))}
           </CardContent>
         </Card>
@@ -257,9 +255,9 @@ export async function HomePageContainer({ category }: { category?: string }) {
             title="Chưa tìm thấy sản phẩm"
             description="Danh mục này chưa có sản phẩm công khai. Hãy thử chọn một danh mục khác."
             action={
-              <Button nativeButton={false} render={<Link href="/" />}>
+              <Link href="/" className={buttonVariants()}>
                 Xem tất cả sản phẩm
-              </Button>
+              </Link>
             }
           />
         )}
