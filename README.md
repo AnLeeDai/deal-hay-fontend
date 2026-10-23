@@ -506,13 +506,13 @@ Không hardcode:
 Ví dụ:
 
 ```env
-NEXT_PUBLIC_API=http://localhost:8000/api
+BACKEND_API_URL=http://localhost:8000/api
 ```
 
 API layer sử dụng:
 
 ```ts
-process.env.NEXT_PUBLIC_API
+process.env.BACKEND_API_URL
 ```
 
 Không viết:
@@ -545,15 +545,19 @@ Dùng cho:
 
 ## 17. Không expose backend config xuống browser
 
-Data fetching chạy server-side. Cấu hình Laravel Backend URL hiện dùng `NEXT_PUBLIC_API` và module `config/env.ts` được bảo vệ bằng `server-only`.
+Data fetching chạy server-side. Cấu hình Laravel Backend URL dùng biến riêng `BACKEND_API_URL` và module `config/env.ts` được bảo vệ bằng `server-only`.
 
 Ví dụ:
 
 ```env
-NEXT_PUBLIC_API=http://localhost:8000/api
+BACKEND_API_URL=http://localhost:8000/api
 ```
 
-Prefix `NEXT_PUBLIC_` khiến Next.js thay giá trị trực tiếp vào mã khi build. URL này không được chứa secret. Khi đổi URL phải build và deploy lại; không import module `config/env.ts` vào Client Component.
+`BACKEND_API_URL` chỉ được đọc trên server và không được đưa vào Client Component. Biến cũ `NEXT_PUBLIC_API` vẫn được đọc làm fallback phía server để tương thích cấu hình cũ; chuyển sang biến riêng và redeploy khi cập nhật cấu hình. URL API không được chứa thông tin đăng nhập, query hoặc fragment.
+
+Các URL ảnh của backend được chuyển thành đường dẫn cùng origin `/api/media/assets/...` trước khi dữ liệu đi vào HTML, RSC hoặc JSON. Route ảnh chỉ nhận key công khai hợp lệ, gọi đúng API đã cấu hình bằng header cố định và truyền nguyên byte; từ chối chuyển hướng, namespace chat/staging, loại tệp ngoài ảnh và nội dung quá 3 MiB. Ảnh công khai có cache trình duyệt và CDN một ngày qua `max-age=86400, s-maxage=86400`. Tệp chat dùng `/api/chat-attachments/{id}` với cookie HttpOnly và kiểm tra thành viên phía backend. Các payload realtime mới cũng dùng đường dẫn tương đối.
+
+Transport JSON cho tin nhắn, thông báo và xác thực WebSocket cũng lọc URL thuộc backend trước khi trả cho trình duyệt; không chuyển tiếp trang lỗi HTML, redirect hoặc header nội bộ. Đây là cách giữ địa chỉ API ngoài luồng tải trang và request của website. Host WebSocket Reverb vẫn công khai vì trình duyệt cần kết nối trực tiếp; địa chỉ dịch vụ có thể vẫn được nhận diện qua DNS/hạ tầng công khai.
 
 Ưu tiên để request xảy ra:
 
@@ -592,7 +596,7 @@ Ví dụ:
 import "server-only";
 
 export const env = {
-  backendApiUrl: process.env.NEXT_PUBLIC_API!,
+  backendApiUrl: process.env.BACKEND_API_URL!,
 };
 ```
 
@@ -889,10 +893,10 @@ Nếu có nhiều giải pháp, luôn chọn giải pháp phù hợp nhất vớ
 Import repository frontend vào Vercel và cấu hình biến sau trong Settings → Environment Variables cho môi trường Preview và Production:
 
 ```env
-NEXT_PUBLIC_API=https://your-api-host.onrender.com/api
+BACKEND_API_URL=https://your-api-host.onrender.com/api
 ```
 
-Tên biến phải đúng là `NEXT_PUBLIC_API`, giá trị là URL HTTP API của Laravel có hậu tố `/api`. Không dùng localhost trong Preview hoặc Production. `.env.local` chỉ cấu hình máy local và không được commit; nó không thiết lập biến cho Vercel. Vì giá trị `NEXT_PUBLIC_API` được thay vào mã khi build, sau khi sửa biến phải Redeploy để tạo deployment mới.
+Đặt `BACKEND_API_URL` bằng URL HTTP API của Laravel có hậu tố `/api`, chỉ dùng trên server. Không dùng localhost trong Preview hoặc Production. `.env.local` chỉ cấu hình máy local và không được commit; nó không thiết lập biến cho Vercel. Biến cũ `NEXT_PUBLIC_API` vẫn được chấp nhận làm fallback, nhưng nên thay bằng `BACKEND_API_URL`. Sau khi sửa biến, Redeploy để nạp cấu hình mới. Triển khai backend cùng phiên bản để có luồng stream ảnh công khai không trả redirect.
 
 Trước khi deploy frontend, kiểm tra `GET https://your-api-host.onrender.com/api/` trả JSON trang chủ với HTTP 200. `/up` trả 200 chưa đủ để xác nhận Laravel API hoạt động: nếu nó trả `{"health":"OK"}` và `/api/*` trả `Not found.`, traffic có thể đang đi vào Laravel Reverb. Trên Render, chỉ HTTP server được nghe cổng công khai; Reverb phải nghe nội bộ và đi qua Caddy.
 
@@ -937,9 +941,11 @@ Triển khai frontend và backend cùng phiên bản; rebuild Docker backend đ�
 
 Liên kết **Độ trễ** trên header/menu mobile mở `/diagnostics` sau khi đăng nhập. Trang đo kết nối có nút bắt đầu dạng vòng tròn, tiến độ kết nối → ping → tải xuống → tải lên, tốc độ Mbps trực tiếp và biểu đồ từ mẫu đo thực. Có thể dừng, đo lại và xem kết quả tạm thời khi lượt đo chưa hoàn tất. Không polling hoặc truyền dữ liệu đo trước khi người dùng bắt đầu.
 
-Server action đọc token từ cookie HTTP-only và gọi `POST /api/diagnostics/speedtest/session` để đổi lấy token chỉ dùng cho lượt đo, hết hạn sau 120 giây. Trình duyệt dùng token này để gửi mẫu trực tiếp đến `/ping`, `/download` và `/upload` trên API; token tài khoản không được trả về trình duyệt. Đường truyền đo không đi qua Next.js, thời gian tạo phiên được tách khỏi số đo. Backend có các endpoint này phải được triển khai cùng frontend; `NEXT_PUBLIC_API` phải là địa chỉ API mà trình duyệt truy cập được, với origin frontend trong `CORS_ALLOWED_ORIGINS`.
+Server action đọc token từ cookie HTTP-only và gọi `POST /api/diagnostics/speedtest/session` để đổi lấy token chỉ dùng cho lượt đo, hết hạn sau 120 giây. Trình duyệt chỉ nhận đường dẫn `/api/speedtest` trên cùng origin, gửi các mẫu qua route giới hạn `/ping`, `/download`, `/upload`; địa chỉ backend và token tài khoản không được trả về trình duyệt. Route chuyển tiếp dạng stream, không cache hoặc nén dữ liệu đo, không nhận URL đích tùy ý và không chuyển tiếp redirect. Nhãn máy chủ luôn là **DealHay Backend**. `BACKEND_API_URL` chỉ dùng ở server; `NEXT_PUBLIC_API` còn được chấp nhận để tương thích cấu hình cũ. Backend và frontend cần được triển khai cùng phiên bản.
 
 Ping là trung vị của 7 yêu cầu HTTP sau một lượt làm nóng kết nối, gồm cả xử lý ứng dụng. Jitter là trung bình chênh lệch tuyệt đối giữa các mẫu ping liên tiếp. Mỗi chiều truyền 6 mẫu với kích thước tự điều chỉnh, tối đa 4 MiB/mẫu tải xuống và 2 MiB/mẫu tải lên. Tốc độ trung bình tính theo tổng byte chia tổng thời gian truyền; upload chỉ được ghi nhận sau khi server xác nhận đủ byte. Tổng payload thực tế tối đa 36 MiB/lượt, giao diện thông báo khoảng 40 MiB trước khi bắt đầu. Mẫu dùng dữ liệu ngẫu nhiên, không cache; server đọc rồi bỏ payload upload, không lưu vào DB/R2.
+
+Đây là tốc độ HTTP qua website tới backend, bao gồm cả thời gian chờ phản hồi. Cỡ mẫu nhắm 2–6 giây tùy ping và tăng tối đa 4 lần mỗi lượt, tránh lỗi cũ nhắm 500 ms làm gói giảm xuống 64 KiB khi ping cao. Không trừ ping để làm tăng Mbps hiển thị. Backend dùng cache riêng cho grant/limiter (`SPEEDTEST_CACHE_STORE`, mặc định file trên một instance) và trả `Server-Timing` số liệu app/DB/cache/lock không có hostname; khi chạy nhiều instance cần store dùng chung.
 
 Endpoint `GET /api/diagnostics` và action đo dịch vụ cũ vẫn được giữ để tương thích. Phép đo mạng trên giao diện không chạy các kiểm tra database, cache, R2 hoặc Reverb.
 

@@ -25,15 +25,32 @@ function loadModule(file, imports = {}) {
   )
 }
 globalThis.__liveTransportTest = { token: "private-cookie-token" }
+const envModule = moduleUrl(
+  `export const env = { BACKEND_API_URL: "https://api.example.test/api" }`
+)
+const privacySource = ts
+  .transpileModule(
+    readFileSync(
+      new URL("../src/lib/backend-privacy.ts", import.meta.url),
+      "utf8"
+    ),
+    {
+      compilerOptions: {
+        module: ts.ModuleKind.ESNext,
+        target: ts.ScriptTarget.ES2022,
+      },
+    }
+  )
+  .outputText.replace(/import ["']server-only["'];?\s*/g, "")
+  .replace(/from ["']@\/config\/env["']/g, `from "${envModule}"`)
 const { GET, POST, PATCH } = await loadModule(
   "../src/app/api/live/[...path]/route.ts",
   {
     "next/headers": moduleUrl(
       `export async function cookies() { return { get() { const value = globalThis.__liveTransportTest.token; return value ? { value } : undefined } } }`
     ),
-    "@/config/env": moduleUrl(
-      `export const env = { NEXT_PUBLIC_API: "https://api.example.test/api" }`
-    ),
+    "@/config/env": envModule,
+    "@/lib/backend-privacy": moduleUrl(privacySource),
     "@/lib/cookies": moduleUrl(`export const AUTH_TOKEN_COOKIE = "auth-token"`),
   }
 )

@@ -4,7 +4,6 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { z } from "zod"
 import { ApiError, apiFetch } from "@/api/client"
-import { env } from "@/config/env"
 import { clearAuthCookies } from "@/lib/auth"
 import { getAuthPageHref } from "@/lib/auth-redirect"
 import { AUTH_TOKEN_COOKIE } from "@/lib/cookies"
@@ -38,7 +37,7 @@ export async function startSpeedtestAction(): Promise<SpeedtestSessionResult> {
       success: true,
       data: {
         token: response.token,
-        endpointUrl: `${env.NEXT_PUBLIC_API}${response.endpoint_path}`,
+        endpointUrl: "/api/speedtest",
         expiresAt: response.expires_at,
         limits: response.limits,
       },

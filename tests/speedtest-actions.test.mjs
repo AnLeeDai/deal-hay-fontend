@@ -75,12 +75,13 @@ test("exchanges the private account token for a scoped grant without a second pr
     success: true,
     data: {
       token: state.response.token,
-      endpointUrl: "https://api.example.test/api/diagnostics/speedtest",
+      endpointUrl: "/api/speedtest",
       expiresAt: state.response.expires_at,
       limits: state.response.limits,
     },
   })
   assert.ok(!JSON.stringify(result).includes(state.token))
+  assert.ok(!JSON.stringify(result).includes("api.example.test"))
 })
 
 test("guests redirect to sign-in and expired account tokens are cleared", async () => {

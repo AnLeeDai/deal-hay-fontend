@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 
 import { env } from "@/config/env"
+import { privateJsonResponse } from "@/lib/backend-privacy"
 import { AUTH_TOKEN_COOKIE } from "@/lib/cookies"
 
 export const dynamic = "force-dynamic"
@@ -65,6 +66,7 @@ async function proxy(
     headers,
     cache: "no-store",
     signal: AbortSignal.timeout(45_000),
+    redirect: "error",
   }
   if (request.method !== "GET") {
     options.body = request.body
@@ -72,18 +74,10 @@ async function proxy(
   }
   try {
     const upstream = await fetch(
-      `${env.NEXT_PUBLIC_API}/${apiPath.map(encodeURIComponent).join("/")}${new URL(request.url).search}`,
+      `${env.BACKEND_API_URL}/${apiPath.map(encodeURIComponent).join("/")}${new URL(request.url).search}`,
       options
     )
-    return new Response(upstream.body, {
-      status: upstream.status,
-      headers: {
-        "Content-Type":
-          upstream.headers.get("content-type") ?? "application/json",
-        "Cache-Control": "no-store",
-        Vary: "Cookie",
-      },
-    })
+    return privateJsonResponse(upstream)
   } catch {
     return Response.json(
       { message: "Kết nối tạm gián đoạn. Vui lòng thử lại." },

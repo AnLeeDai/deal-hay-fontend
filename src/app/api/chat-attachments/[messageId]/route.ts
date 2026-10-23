@@ -16,18 +16,26 @@ export async function GET(
   }
 
   const { messageId } = await params
-  const upstream = await fetch(
-    `${env.NEXT_PUBLIC_API}/messages/attachments/${encodeURIComponent(messageId)}`,
-    {
-      cache: "no-store",
-      headers: {
-        Accept: "*/*",
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  )
+  let upstream: Response
+  try {
+    upstream = await fetch(
+      `${env.BACKEND_API_URL}/messages/attachments/${encodeURIComponent(messageId)}`,
+      {
+        cache: "no-store",
+        redirect: "error",
+        signal: AbortSignal.any([_request.signal, AbortSignal.timeout(30_000)]),
+        headers: {
+          Accept: "*/*",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    )
+  } catch {
+    return new Response(null, { status: 503 })
+  }
 
   if (!upstream.ok || !upstream.body) {
+    await upstream.body?.cancel()
     return new Response(null, { status: upstream.status })
   }
 

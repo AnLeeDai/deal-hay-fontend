@@ -3,6 +3,7 @@ import "server-only"
 import { cookies } from "next/headers"
 
 import { env } from "@/config/env"
+import { sanitizeBackendPayload } from "@/lib/backend-privacy"
 import { AUTH_TOKEN_COOKIE } from "@/lib/cookies"
 import type { ValidationErrors } from "@/types/common"
 
@@ -73,7 +74,7 @@ export async function apiFetch<T>({
 }: ApiRequestOptions): Promise<T> {
   const resolvedToken = await resolveToken(token)
   const requestHeaders = new Headers(headers)
-  const url = `${env.NEXT_PUBLIC_API}${path}${toQueryString(searchParams)}`
+  const url = `${env.BACKEND_API_URL}${path}${toQueryString(searchParams)}`
 
   if (!requestHeaders.has("Accept")) {
     requestHeaders.set("Accept", "application/json")
@@ -104,12 +105,13 @@ export async function apiFetch<T>({
     body: requestBody,
     cache,
     next,
+    redirect: "error",
   })
 
   const contentType = response.headers.get("content-type") ?? ""
   const isJson = contentType.includes("application/json")
   const payload = isJson
-    ? ((await response.json()) as ApiErrorPayload)
+    ? sanitizeBackendPayload((await response.json()) as ApiErrorPayload)
     : undefined
 
   if (!response.ok) {
@@ -127,5 +129,5 @@ export async function apiFetch<T>({
     return payload as T
   }
 
-  return (await response.text()) as T
+  return sanitizeBackendPayload(await response.text()) as T
 }

@@ -434,7 +434,7 @@ export function DiagnosticsClient() {
                 Kết nối của bạn với DealHay
               </CardTitle>
               <CardDescription className="mt-1">
-                Đo trực tiếp trên đường truyền bạn đang sử dụng
+                Đo tốc độ truy cập DealHay trên đường truyền bạn đang sử dụng
               </CardDescription>
             </div>
             <Badge
@@ -490,6 +490,16 @@ export function DiagnosticsClient() {
                 Lượt đo đã dừng. Các số liệu bên dưới là kết quả đo được trước
                 khi dừng.
               </p>
+            ) : null}
+
+            {state.pingMs !== null && state.pingMs >= 500 && !state.error ? (
+              <Alert>
+                <AlertDescription>
+                  Phản hồi hiện chậm ({number(state.pingMs)} ms). Kết quả đo
+                  phản ánh tốc độ truy cập DealHay, bao gồm thời gian chờ máy
+                  chủ phản hồi và truyền dữ liệu.
+                </AlertDescription>
+              </Alert>
             ) : null}
 
             <div className="grid items-center gap-6 lg:grid-cols-[0.85fr_1.15fr] lg:gap-10">
@@ -554,8 +564,8 @@ export function DiagnosticsClient() {
                       Ping
                       <MetricHelp label="ping">
                         Trung vị thời gian khứ hồi của các yêu cầu HTTP từ trình
-                        duyệt đến API DealHay. Giá trị thấp hơn cho biết phản
-                        hồi nhanh hơn.
+                        duyệt qua website đến DealHay Backend. Giá trị thấp hơn
+                        cho biết phản hồi nhanh hơn.
                       </MetricHelp>
                     </dt>
                     <dd className="mt-1 text-xl font-semibold tabular-nums">
@@ -652,7 +662,7 @@ export function DiagnosticsClient() {
               <span className="min-w-0 break-all">
                 Máy chủ:{" "}
                 <span className="font-medium text-foreground">
-                  {state.serverHost ?? "API DealHay · xác định khi bắt đầu"}
+                  DealHay Backend
                 </span>
               </span>
             </p>
@@ -663,7 +673,7 @@ export function DiagnosticsClient() {
                 truyền
               </p>
             ) : (
-              <p>Trình duyệt → API DealHay</p>
+              <p>Trình duyệt → DealHay → DealHay Backend</p>
             )}
           </div>
         </Card>
@@ -685,8 +695,9 @@ export function DiagnosticsClient() {
           </div>
           <p className="text-xs leading-6 text-muted-foreground">
             Kết quả phản ánh đường truyền đến DealHay tại thời điểm đo. Ping là
-            thời gian khứ hồi của yêu cầu HTTP; tốc độ có thể thay đổi theo
-            Wi-Fi, thiết bị, mạng và tải của máy chủ.
+            thời gian khứ hồi của yêu cầu HTTP qua website đến DealHay Backend.
+            Tốc độ bao gồm thời gian máy chủ phản hồi và truyền dữ liệu, có thể
+            thay đổi theo Wi-Fi, thiết bị, mạng và tải máy chủ.
           </p>
         </div>
       </div>

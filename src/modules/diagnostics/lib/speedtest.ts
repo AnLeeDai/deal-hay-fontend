@@ -16,7 +16,7 @@ export function initialSpeedtestState(): SpeedtestState {
     uploadMbps: null,
     liveMbps: null,
     samples: { download: [], upload: [] },
-    serverHost: null,
+    serverName: null,
     completedAt: null,
     elapsedMs: 0,
     transferredBytes: 0,
@@ -77,18 +77,11 @@ export async function measureSpeedtest(
   const now = dependencies.now ?? (() => performance.now())
   const payload = dependencies.payload ?? randomPayload
   const startedAt = now()
-  const endpoint = new URL(session.endpointUrl)
-  if (
-    !/^https?:$/.test(endpoint.protocol) ||
-    endpoint.username ||
-    endpoint.password ||
-    endpoint.search ||
-    endpoint.hash
-  )
+  if (session.endpointUrl !== "/api/speedtest")
     throw new Error("Địa chỉ máy chủ đo không hợp lệ.")
   let state: SpeedtestState = {
     ...initialSpeedtestState(),
-    serverHost: endpoint.host,
+    serverName: "DealHay Backend",
   }
   let requests = 0
   const emit = (update: Partial<SpeedtestState>) => {
@@ -118,10 +111,8 @@ export async function measureSpeedtest(
       state.transferredBytes + bytes > session.limits.max_session_bytes
     )
       throw new Error("Lượt đo đã đạt giới hạn dữ liệu. Vui lòng đo lại.")
-    // Keep each probe URL stable so adaptive sizes can reuse CORS preflight.
-    // API responses use no-store. Let the browser reuse CORS permission caching;
-    // fetch cache:no-store would also force fresh preflights in Chromium.
-    const url = new URL(`${endpoint.href.replace(/\/$/, "")}/${path}`)
+    // Fixed same-origin routes keep the private upstream address on the server.
+    const url = `${session.endpointUrl}/${path}`
     const controller = new AbortController()
     const cancel = () => controller.abort()
     signal.addEventListener("abort", cancel, { once: true })
@@ -130,7 +121,7 @@ export async function measureSpeedtest(
     try {
       const response = await request(url, {
         method: body ? "POST" : "GET",
-        mode: "cors",
+        mode: "same-origin",
         credentials: "omit",
         cache: "default",
         redirect: "error",
@@ -289,9 +280,16 @@ export async function measureSpeedtest(
           ],
         },
       })
+      // A fixed 500 ms target shrinks packets forever when RTT exceeds 500 ms.
+      // Increase the sample duration on slow-response paths, while retaining
+      // actual bytes/full elapsed time for the displayed effective HTTP speed.
+      const targetMs = Math.min(6000, Math.max(2000, (state.pingMs ?? 0) * 3))
       const desired =
-        Math.ceil((size * 500) / result.durationMs / (64 * KIB)) * 64 * KIB
-      size = Math.min(maxSize, Math.max(Math.min(64 * KIB, maxSize), desired))
+        Math.ceil((size * targetMs) / result.durationMs / (64 * KIB)) * 64 * KIB
+      size = Math.min(
+        maxSize,
+        Math.max(Math.min(64 * KIB, maxSize), Math.min(size * 4, desired))
+      )
     }
   }
   emit({

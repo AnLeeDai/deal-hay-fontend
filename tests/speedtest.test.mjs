@@ -27,7 +27,7 @@ const {
 const MIB = 1024 * 1024
 const session = () => ({
   token: "g".repeat(64),
-  endpointUrl: "https://api.example.test/api/diagnostics/speedtest",
+  endpointUrl: "/api/speedtest",
   expiresAt: "2026-10-24T10:00:00Z",
   limits: {
     max_download_bytes: 4 * MIB,
@@ -37,18 +37,30 @@ const session = () => ({
   },
 })
 
-function harness({ override, grant = session(), fast = false } = {}) {
+function harness({
+  override,
+  grant = session(),
+  fast = false,
+  latency,
+  linkMbps = 100,
+} = {}) {
   let time = 0
   const calls = []
   const updates = []
   const transfers = { download: [], upload: [] }
-  const pings = [1000, 20, 40, 30, 80, 60, 40, 20]
+  const pings =
+    latency === undefined
+      ? [1000, 20, 40, 30, 80, 60, 40, 20]
+      : Array(8).fill(latency)
   let pingIndex = 0
   const controller = new AbortController()
   const deps = {
     now: () => time,
     payload: (size) => new Uint8Array(size).fill(127),
     async fetch(url, options) {
+      assert.equal(typeof url, "string")
+      assert.ok(url.startsWith("/api/speedtest/"))
+      url = new URL(url, "https://www.example.test")
       const phase = url.pathname.split("/").at(-1)
       const bytes =
         phase === "download"
@@ -68,7 +80,12 @@ function harness({ override, grant = session(), fast = false } = {}) {
         return new Response(null, { status: 204 })
       }
       const index = transfers[phase].length
-      const durationMs = fast ? 1 : 200 + index * 75
+      const durationMs =
+        latency === undefined
+          ? fast
+            ? 1
+            : 200 + index * 75
+          : latency + (bytes * 8) / (linkMbps * 1000)
       transfers[phase].push({ bytes, durationMs })
       time += durationMs / 4 // Time until response headers, excluding most body transfer.
       if (phase === "upload") {
@@ -136,7 +153,7 @@ test("measures the browser API path with a discarded warmup and weighted full-bo
   const h = harness()
   const result = await h.run()
   assert.equal(result.phase, "complete")
-  assert.equal(result.serverHost, "api.example.test")
+  assert.equal(result.serverName, "DealHay Backend")
   assert.equal(result.pingMs, 40)
   assert.equal(result.jitterMs, 140 / 6)
   assert.equal(h.calls.length, 20)
@@ -177,8 +194,9 @@ test("measures the browser API path with a discarded warmup and weighted full-bo
     )
   )
   for (const { url, options, phase, bytes } of h.calls) {
-    assert.equal(url.origin, "https://api.example.test")
-    assert.equal(url.pathname, `/api/diagnostics/speedtest/${phase}`)
+    assert.equal(url.origin, "https://www.example.test")
+    assert.equal(url.pathname, `/api/speedtest/${phase}`)
+    assert.equal(options.mode, "same-origin")
     assert.equal(options.headers.Authorization, `Bearer ${session().token}`)
     assert.equal(options.credentials, "omit")
     assert.equal(options.cache, "default")
@@ -211,6 +229,34 @@ test("caps adaptive transfer sizes and total data even on an extremely fast conn
   assert.ok(h.transfers.upload.some((sample) => sample.bytes === 2 * MIB))
   assert.ok(h.transfers.download.every((sample) => sample.bytes <= 4 * MIB))
   assert.ok(h.transfers.upload.every((sample) => sample.bytes <= 2 * MIB))
+  assert.ok(result.transferredBytes <= 36 * MIB)
+})
+
+test("high RTT grows transfer packets instead of collapsing into a 64 KiB speed ceiling", async () => {
+  const h = harness({ latency: 1810, linkMbps: 100 })
+  const result = await h.run()
+  assert.equal(result.pingMs, 1810)
+  assert.ok(h.transfers.download.some((sample) => sample.bytes === 4 * MIB))
+  assert.ok(h.transfers.upload.some((sample) => sample.bytes === 2 * MIB))
+  for (const phase of ["download", "upload"]) {
+    const samples = h.transfers[phase]
+    assert.ok(
+      samples
+        .slice(1)
+        .every((sample, index) => sample.bytes >= samples[index].bytes)
+    )
+    const measuredMbps = throughputMbps(
+      samples.reduce((sum, item) => sum + item.bytes, 0),
+      samples.reduce((sum, item) => sum + item.durationMs, 0)
+    )
+    assert.ok(Math.abs(result[`${phase}Mbps`] - measuredMbps) < 1e-8)
+    assert.ok(result[`${phase}Mbps`] > 1)
+    assert.ok(
+      result[`${phase}Mbps`] < 100,
+      "keep real response wait in effective HTTP throughput"
+    )
+  }
+  assert.equal(h.calls.length, 20)
   assert.ok(result.transferredBytes <= 36 * MIB)
 })
 

@@ -19,7 +19,7 @@ export type SpeedtestState = {
   uploadMbps: number | null
   liveMbps: number | null
   samples: { download: SpeedSample[]; upload: SpeedSample[] }
-  serverHost: string | null
+  serverName: "DealHay Backend" | null
   completedAt: string | null
   elapsedMs: number
   transferredBytes: number

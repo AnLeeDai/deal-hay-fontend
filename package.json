@@ -14,7 +14,7 @@
     "test:admin-login": "node tests/admin-login-verification.test.mjs",
     "test:product-price": "node --test tests/product-display-price.test.mjs src/modules/public/lib/variant-selection.test.mjs",
     "test:realtime": "node --test tests/realtime-chat-state.test.mjs tests/realtime-transport.test.mjs tests/notification-visibility.test.mjs",
-    "test:speedtest": "node --test tests/speedtest.test.mjs tests/speedtest-actions.test.mjs tests/speedtest-hook.test.mjs tests/diagnostics-actions.test.mjs",
+    "test:speedtest": "node --test tests/speedtest.test.mjs tests/speedtest-actions.test.mjs tests/speedtest-hook.test.mjs tests/speedtest-proxy.test.mjs tests/diagnostics-actions.test.mjs",
     "test:chat-image": "node tests/chat-image-send.test.mjs",
     "test:inventory": "node --test tests/inventory-labels.test.mjs tests/inventory-camera.test.mjs tests/inventory-scan.test.mjs tests/inventory-unit-actions.test.mjs tests/stocktake-report.test.mjs",
     "test:image-upload": "node --test tests/image-upload.test.mjs tests/prepared-image-validation.test.mjs tests/shop-product-automatic-ads.test.mjs"
