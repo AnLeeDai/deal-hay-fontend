@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useId, useRef, useState } from "react"
+
+import { startInventoryCamera } from "@/modules/shop-management/lib/inventory-camera"
 
 export function InventoryQrScanner({
   onScan,
@@ -10,47 +12,23 @@ export function InventoryQrScanner({
   onError: (message: string) => void
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const instructionsId = useId()
+  const [ready, setReady] = useState(false)
   const callbacks = useRef({ onScan, onError })
   useEffect(() => {
     callbacks.current = { onScan, onError }
   }, [onScan, onError])
 
   useEffect(() => {
-    let cancelled = false
-    let detected = false
-    let controls: { stop: () => void } | undefined
     const video = videoRef.current
-    async function start() {
-      try {
-        const { BrowserQRCodeReader } = await import("@zxing/browser")
-        if (cancelled || !video) return
-        const reader = new BrowserQRCodeReader()
-        controls = await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: "environment" } }, audio: false },
-          video,
-          (result, _error, scanner) => {
-            if (!cancelled && !detected && result) {
-              detected = true
-              scanner.stop()
-              callbacks.current.onScan(result.getText())
-            }
-          }
-        )
-        if (cancelled || detected) controls.stop()
-      } catch {
-        if (!cancelled)
-          callbacks.current.onError(
-            "Không mở được camera. Hãy cấp quyền camera trên kết nối HTTPS, hoặc dùng máy quét / nhập mã bên dưới."
-          )
-      }
-    }
-    void start()
+    if (!video) return
+    const scanner = startInventoryCamera(video, {
+      onScan: (sku) => callbacks.current.onScan(sku),
+      onError: (message) => callbacks.current.onError(message),
+      onReady: () => setReady(true),
+    })
     return () => {
-      cancelled = true
-      controls?.stop()
-      const stream = video?.srcObject
-      if (stream instanceof MediaStream)
-        stream.getTracks().forEach((track) => track.stop())
+      void scanner.stop()
     }
   }, [])
 
@@ -61,11 +39,18 @@ export function InventoryQrScanner({
         autoPlay
         muted
         playsInline
+        aria-label="Camera quét QR trên tem hàng hóa"
+        aria-describedby={instructionsId}
         className="max-h-72 w-full rounded-lg bg-black"
       />
-      <p className="text-xs text-muted-foreground">
-        Đưa một tem QR vào khung hình. Camera dừng sau mỗi lượt để tránh đếm
-        trùng; bấm Quét bằng camera để quét tiếp.
+      <p role="status" className="text-xs text-muted-foreground">
+        {ready
+          ? "Camera sẵn sàng. Đưa tem QR vào khung hình."
+          : "Đang mở camera..."}
+      </p>
+      <p id={instructionsId} className="text-xs text-muted-foreground">
+        Camera đọc SKU trên tem và dừng sau mỗi lượt. Bấm Quét bằng camera để
+        quét tiếp.
       </p>
     </div>
   )

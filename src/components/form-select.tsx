@@ -2,21 +2,10 @@
 
 import * as React from "react"
 
+import { AppSelect, type AppSelectOption } from "@/components/app-select"
 import { useFormField } from "@/components/ui/form"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
-export type FormSelectOption = {
-  label: string
-  value: string
-  disabled?: boolean
-}
+export type FormSelectOption = AppSelectOption
 
 type FormSelectProps = {
   options: FormSelectOption[]
@@ -42,38 +31,20 @@ export function FormSelect({
   const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
 
   return (
-    <Select
+    <AppSelect
       disabled={disabled}
       inputRef={inputRef}
-      items={options}
+      options={options}
       name={name}
-      value={value || null}
-      onValueChange={(nextValue) => onValueChange(nextValue ?? "")}
-    >
-      <SelectTrigger
-        aria-describedby={
-          error ? `${formDescriptionId} ${formMessageId}` : formDescriptionId
-        }
-        aria-invalid={Boolean(error)}
-        className="w-full"
-        id={formItemId}
-        onBlur={onBlur}
-      >
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          {options.map((option) => (
-            <SelectItem
-              key={option.value}
-              disabled={option.disabled}
-              value={option.value}
-            >
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
+      value={value}
+      onValueChange={onValueChange}
+      aria-describedby={
+        error ? `${formDescriptionId} ${formMessageId}` : formDescriptionId
+      }
+      aria-invalid={Boolean(error)}
+      id={formItemId}
+      onBlur={onBlur}
+      placeholder={placeholder}
+    />
   )
 }

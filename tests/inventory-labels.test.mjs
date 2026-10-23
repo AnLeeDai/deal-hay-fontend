@@ -32,55 +32,55 @@ const source = outputText.replace(
 const { inventoryLabels, printInventoryLabels } = await import(
   `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
 )
-
 const productId = "019a10bf-e4d2-7000-8000-111111111111"
 const variantId = "019a10bf-e4d2-7000-8000-222222222222"
-function product(overrides = {}) {
+const firstUnitId = "019a10bf-e4d2-7000-8000-333333333333"
+const secondUnitId = "019a10bf-e4d2-7000-8000-444444444444"
+const firstSku = `DHU-${firstUnitId.toUpperCase()}`
+const secondSku = `DHU-${secondUnitId.toUpperCase()}`
+function unit(overrides = {}) {
   return {
-    id: productId,
-    sku: "SKU-001",
-    name: "Áo thun",
+    id: firstUnitId,
+    code: `DH:U:${firstUnitId}`,
+    sku: firstSku,
+    shop_product_id: productId,
+    shop_product_variant_id: null,
+    product_name: "Áo thun",
+    variant_name: null,
     price: 100000,
-    stock: 12,
-    has_variants: false,
+    stock: 1,
     is_active: true,
-    variants: [],
-    retired_variants: [],
+    status: "available",
     ...overrides,
   }
 }
-function variant(overrides = {}) {
-  return {
-    id: variantId,
-    sku: "SKU-001-RED",
-    option_values: { "Màu sắc": "Đỏ", Size: "M" },
-    variant_label: "",
-    stock: 5,
-    price: null,
-    is_active: true,
-    retired_at: null,
+function secondUnit(overrides = {}) {
+  return unit({
+    id: secondUnitId,
+    code: `DH:U:${secondUnitId}`,
+    sku: secondSku,
+    shop_product_variant_id: variantId,
+    variant_name: "Đỏ / M",
     ...overrides,
-  }
+  })
 }
-
 function decodeQrDataUrl(dataUrl) {
   const { data, width, height } = PNG.sync.read(
     Buffer.from(dataUrl.split(",")[1], "base64")
   )
   const pixels = new Int32Array(width * height)
-  for (let index = 0; index < pixels.length; index++) {
+  for (let index = 0; index < pixels.length; index++)
     pixels[index] =
       (data[index * 4] << 16) | (data[index * 4 + 1] << 8) | data[index * 4 + 2]
-  }
-  const bitmap = new BinaryBitmap(
-    new HybridBinarizer(new RGBLuminanceSource(pixels, width, height))
-  )
-  return new QRCodeReader().decode(bitmap).getText()
+  return new QRCodeReader()
+    .decode(
+      new BinaryBitmap(
+        new HybridBinarizer(new RGBLuminanceSource(pixels, width, height))
+      )
+    )
+    .getText()
 }
-
-let popup
-let opened
-let events
+let popup, opened, events
 test.beforeEach(() => {
   opened = 0
   events = []
@@ -128,132 +128,152 @@ test.afterEach(() => {
   delete globalThis.window
 })
 
-test("product and variant QR identifiers remain stable when their names or SKUs change", () => {
-  const first = inventoryLabels([product()])[0]
+test("each physical unit retains its issued unique SKU and QR across renames and reprints", async () => {
+  const labels = inventoryLabels([unit(), secondUnit()])
+  assert.deepEqual(
+    labels.map(({ code }) => code),
+    [firstSku, secondSku]
+  )
+  assert.deepEqual(
+    labels.map(({ sku }) => sku),
+    [firstSku, secondSku]
+  )
+  assert.deepEqual(
+    labels.map(({ stock }) => stock),
+    [1, 1]
+  )
   const renamed = inventoryLabels([
-    product({ name: "Tên mới", sku: "NEW-SKU" }),
-  ])[0]
-  assert.equal(first.code, `DH:P:${productId}`)
-  assert.equal(renamed.code, first.code)
-
-  const variants = inventoryLabels([
-    product({ has_variants: true, variants: [variant()] }),
+    unit({ product_name: "Tên mới", price: 150000 }),
   ])
-  const changed = inventoryLabels([
-    product({
-      has_variants: true,
-      name: "Tên mới",
-      variants: [variant({ sku: "NEW-VARIANT-SKU" })],
-    }),
-  ])
-  assert.equal(variants.length, 1)
-  assert.equal(variants[0].code, `DH:V:${variantId}`)
-  assert.equal(changed[0].code, variants[0].code)
-  assert.equal(variants[0].price, 100000)
-  assert.equal(variants[0].stock, 5)
-  assert.equal(variants[0].variant, "Màu sắc: Đỏ / Size: M")
+  assert.equal(renamed[0].code, labels[0].code)
+  assert.equal(renamed[0].sku, labels[0].sku)
+  assert.equal(renamed[0].price, 150000)
+  await printInventoryLabels(labels)
+  const firstCodes = popup.document.images.map((image) =>
+    decodeQrDataUrl(image.src)
+  )
+  await printInventoryLabels(labels)
+  assert.deepEqual(
+    popup.document.images.map((image) => decodeQrDataUrl(image.src)),
+    firstCodes
+  )
 })
 
-test("hidden products and variants remain available for inventory while retired variants are excluded", () => {
+test("hidden inventory keeps its individual labels and variant names", () => {
   const result = inventoryLabels([
-    product({ is_active: false }),
-    product({
-      id: "second-product",
-      has_variants: true,
-      variants: [
-        variant({ is_active: false, price: 90000, variant_label: "Đỏ / M" }),
-        variant({ id: "retired", retired_at: "2026-10-22T01:00:00Z" }),
-      ],
-      retired_variants: [variant({ id: "retired-separate" })],
-    }),
+    unit({ is_active: false }),
+    secondUnit({ is_active: false, price: 90000 }),
   ])
-  assert.equal(result.length, 2)
   assert.deepEqual(
-    result.map((label) => label.active),
+    result.map(({ active }) => active),
     [false, false]
   )
   assert.equal(result[1].price, 90000)
   assert.equal(result[1].variant, "Đỏ / M")
-  assert.ok(result.every((label) => !label.code.includes("retired")))
 })
 
-test("printed PNG QR codes decode to the exact product and variant identifiers, and images load before printing", async () => {
-  const labels = inventoryLabels([
-    product(),
-    product({ id: "other-product", has_variants: true, variants: [variant()] }),
-  ])
-  const result = printInventoryLabels(labels, 2)
-  assert.equal(
-    opened,
-    1,
-    "the popup must open synchronously before awaiting QR creation"
-  )
+test("printed PNG QR codes decode to unique physical units, with one label per unit and images ready before printing", async () => {
+  const result = printInventoryLabels(inventoryLabels([unit(), secondUnit()]))
+  assert.equal(opened, 1, "open synchronously before awaiting QR creation")
   await result
-
-  assert.equal(popup.document.images.length, 4)
+  assert.equal(popup.document.images.length, 2)
   assert.deepEqual(
     popup.document.images.map((image) => decodeQrDataUrl(image.src)),
-    [
-      `DH:P:${productId}`,
-      `DH:P:${productId}`,
-      `DH:V:${variantId}`,
-      `DH:V:${variantId}`,
-    ]
+    [firstSku, secondSku]
   )
-  assert.equal(events.filter((event) => event === "decode").length, 4)
+  assert.equal(events.filter((event) => event === "decode").length, 2)
   assert.deepEqual(events.slice(-2), ["focus", "print"])
   assert.ok(!events.includes("popup-close"))
 })
 
-test("print markup escapes names, variant text and SKUs without changing the encoded identifier", async () => {
+test("print markup escapes names, variant text and SKUs without changing the physical unit QR", async () => {
   const labels = inventoryLabels([
-    product({
-      name: '<script>alert("x")</script> & Áo',
-      sku: `SKU<'"&>`,
-      has_variants: true,
-      variants: [
-        variant({ sku: `SKU<'"&>`, variant_label: '<img onerror="boom">' }),
-      ],
+    secondUnit({
+      product_name: '<script>alert("x")</script> & Áo',
+      sku: `DHU<'"&>`,
+      variant_name: '<img onerror="boom">',
     }),
   ])
-  await printInventoryLabels(labels, 1)
+  await printInventoryLabels(labels)
   const html = popup.document.html
   assert.ok(
     html.includes("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; Áo")
   )
   assert.ok(html.includes("&lt;img onerror=&quot;boom&quot;&gt;"))
-  assert.ok(html.includes("SKU&lt;&#39;&quot;&amp;&gt;"))
+  assert.ok(html.includes("DHU&lt;&#39;&quot;&amp;&gt;"))
   assert.ok(!html.includes("<script>"))
   assert.ok(!html.includes('<img onerror="boom">'))
-  assert.equal(
-    decodeQrDataUrl(popup.document.images[0].src),
-    `DH:V:${variantId}`
-  )
+  assert.equal(decodeQrDataUrl(popup.document.images[0].src), `DHU<'"&>`)
 })
 
-test("invalid print counts and batches above 1000 labels are rejected before opening a popup", async () => {
-  const labels = inventoryLabels([product()])
-  for (const copies of [0, -1, 1.5, 101, Number.NaN, Infinity]) {
+test("copies and invalid batch sizes are rejected before opening a popup", async () => {
+  const labels = inventoryLabels([unit()])
+  for (const copies of [0, -1, 1.5, 2, 100, Number.NaN, Infinity])
     await assert.rejects(
       printInventoryLabels(labels, copies),
       /tối đa 1000 tem/
     )
-  }
   await assert.rejects(printInventoryLabels([], 1), /tối đa 1000 tem/)
   await assert.rejects(
-    printInventoryLabels(
-      Array.from({ length: 11 }, () => labels[0]),
-      100
-    ),
+    printInventoryLabels(Array.from({ length: 1001 }, () => labels[0])),
     /tối đa 1000 tem/
   )
   assert.equal(opened, 0)
 })
 
-test("blocked print popups and image-loading failures surface errors without printing incomplete labels", async () => {
-  const labels = inventoryLabels([product()])
+test("printed QR ignores legacy or rich API codes and contains only the unit SKU", async () => {
+  for (const code of [
+    `DH:P:${productId}`,
+    `DH:V:${variantId}`,
+    `DH:U:${secondUnitId}`,
+    '{"sku":"wrong","id":"metadata"}',
+  ]) {
+    const labels = inventoryLabels([unit({ code })])
+    assert.equal(labels[0].code, firstSku)
+    await printInventoryLabels(labels)
+    assert.equal(decodeQrDataUrl(popup.document.images[0].src), firstSku)
+  }
+})
+
+test("mismatched QR payloads, aggregate quantities and duplicate unit identities cannot be printed", async () => {
+  for (const code of [
+    `DH:P:${productId}`,
+    `DH:V:${variantId}`,
+    `DH:U:${secondUnitId}`,
+    "another-SKU",
+  ]) {
+    await assert.rejects(
+      printInventoryLabels([{ ...inventoryLabels([unit()])[0], code }]),
+      /QR riêng từng đơn vị/
+    )
+  }
+  await assert.rejects(
+    printInventoryLabels(inventoryLabels([unit({ stock: 2 })])),
+    /QR riêng từng đơn vị/
+  )
+  await assert.rejects(
+    printInventoryLabels(inventoryLabels([unit(), unit()])),
+    /trùng/
+  )
+  await assert.rejects(
+    printInventoryLabels(
+      inventoryLabels([unit(), secondUnit({ sku: firstSku.toLowerCase() })])
+    ),
+    /trùng/
+  )
+  await assert.rejects(
+    printInventoryLabels(
+      inventoryLabels([unit(), secondUnit({ id: firstUnitId })])
+    ),
+    /trùng/
+  )
+  assert.equal(opened, 0)
+})
+
+test("blocked popups and image-loading failures surface errors without incomplete printing", async () => {
+  const labels = inventoryLabels([unit()])
   globalThis.window.open = () => null
-  await assert.rejects(printInventoryLabels(labels, 1), /chặn cửa sổ in/)
+  await assert.rejects(printInventoryLabels(labels), /chặn cửa sổ in/)
   globalThis.window.open = () => popup
   const originalWrite = popup.document.write.bind(popup.document)
   popup.document.write = function (html) {
@@ -262,7 +282,7 @@ test("blocked print popups and image-loading failures surface errors without pri
       throw new Error("PNG loading failed")
     }
   }
-  await assert.rejects(printInventoryLabels(labels, 1), /PNG loading failed/)
+  await assert.rejects(printInventoryLabels(labels), /PNG loading failed/)
   assert.ok(events.includes("popup-close"))
   assert.ok(!events.includes("print"))
 })

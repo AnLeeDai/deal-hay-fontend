@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import Link from "next/link"
 import { CopyIcon, TicketPercentIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { loadShopOffersAction } from "@/modules/public/shop-offer-actions"
 import { shopOfferDiscount } from "@/modules/public/lib/shop-offers"
@@ -170,9 +172,13 @@ export function ShopOfferSelector({
   onReload: () => void
   disabled: boolean
 }) {
+  const prefix = useId()
+
   return (
     <fieldset className="space-y-3 rounded-xl border p-4" disabled={disabled}>
-      <legend className="px-1 font-medium">Ưu đãi từ shop</legend>
+      <legend id={`${prefix}-legend`} className="px-1 font-medium">
+        Ưu đãi từ shop
+      </legend>
       <p className="text-xs leading-5 text-muted-foreground">
         Chọn một ưu đãi cho sản phẩm này. Mức giảm được tính trên tiền hàng còn
         lại sau các mã khác.
@@ -187,66 +193,74 @@ export function ShopOfferSelector({
           <p className="text-sm text-destructive" role="alert">
             {error}
           </p>
-          <Button type="button" variant="outline" size="sm" onClick={onReload}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onReload}
+            disabled={disabled}
+          >
             Tải lại ưu đãi
           </Button>
         </div>
       ) : null}
-      <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm">
-        <input
-          type="radio"
-          name="shop_offer"
-          value=""
-          checked={!selectedId}
-          onChange={() => onSelect("")}
-          className="size-4 accent-primary"
-        />
-        Không dùng ưu đãi từ shop
-      </label>
-      {offers.map((offer) => {
-        const discount = shopOfferDiscount(offer, subtotal, remaining)
-        return (
-          <label
-            key={offer.id}
-            className={`flex items-start gap-3 rounded-lg border p-3 ${discount > 0 ? "cursor-pointer hover:border-primary" : "text-muted-foreground"}`}
-          >
-            <input
-              type="radio"
-              name="shop_offer"
-              className="mt-1 size-4 shrink-0 accent-primary"
-              value={offer.id}
-              checked={selectedId === offer.id}
-              disabled={pending || discount <= 0}
-              onChange={() => onSelect(offer.id)}
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">
-                {offer.name} · Giảm {offerValue(offer)}
-              </span>
-              <span className="mt-1 block text-xs">
-                Tiền hàng từ {formatCurrency(offer.minimum_order_amount)}
-                {offer.maximum_discount_amount !== null
-                  ? ` · Tối đa ${formatCurrency(offer.maximum_discount_amount)}`
-                  : ""}
-              </span>
-              {offer.ends_at ? (
-                <span className="mt-1 block text-xs">
-                  Hạn {formatDate(offer.ends_at)}
+      <RadioGroup
+        aria-labelledby={`${prefix}-legend`}
+        name="shop_offer"
+        value={selectedId}
+        onValueChange={(value) => onSelect(value)}
+        disabled={disabled}
+      >
+        <Label
+          htmlFor={`${prefix}-none`}
+          className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm font-normal"
+        >
+          <RadioGroupItem id={`${prefix}-none`} value="" />
+          Không dùng ưu đãi từ shop
+        </Label>
+        {offers.map((offer) => {
+          const discount = shopOfferDiscount(offer, subtotal, remaining)
+          return (
+            <Label
+              key={offer.id}
+              htmlFor={`${prefix}-${offer.id}`}
+              className={`flex items-start gap-3 rounded-lg border p-3 ${discount > 0 ? "cursor-pointer hover:border-primary" : "text-muted-foreground"}`}
+            >
+              <RadioGroupItem
+                id={`${prefix}-${offer.id}`}
+                className="mt-1"
+                value={offer.id}
+                disabled={pending || discount <= 0}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">
+                  {offer.name} · Giảm {offerValue(offer)}
                 </span>
-              ) : null}
-              <span
-                className={`mt-1 block text-xs ${discount > 0 ? "text-primary" : ""}`}
-              >
-                {discount > 0
-                  ? `Tiết kiệm thêm ${formatCurrency(discount)}`
-                  : subtotal < offer.minimum_order_amount
-                    ? `Cần thêm ${formatCurrency(offer.minimum_order_amount - subtotal)} tiền hàng`
-                    : "Chưa đủ điều kiện hoặc mã đã hết hiệu lực"}
+                <span className="mt-1 block text-xs">
+                  Tiền hàng từ {formatCurrency(offer.minimum_order_amount)}
+                  {offer.maximum_discount_amount !== null
+                    ? ` · Tối đa ${formatCurrency(offer.maximum_discount_amount)}`
+                    : ""}
+                </span>
+                {offer.ends_at ? (
+                  <span className="mt-1 block text-xs">
+                    Hạn {formatDate(offer.ends_at)}
+                  </span>
+                ) : null}
+                <span
+                  className={`mt-1 block text-xs ${discount > 0 ? "text-primary" : ""}`}
+                >
+                  {discount > 0
+                    ? `Tiết kiệm thêm ${formatCurrency(discount)}`
+                    : subtotal < offer.minimum_order_amount
+                      ? `Cần thêm ${formatCurrency(offer.minimum_order_amount - subtotal)} tiền hàng`
+                      : "Chưa đủ điều kiện hoặc mã đã hết hiệu lực"}
+                </span>
               </span>
-            </span>
-          </label>
-        )
-      })}
+            </Label>
+          )
+        })}
+      </RadioGroup>
       {!pending && !error && !offers.length ? (
         <p className="text-sm text-muted-foreground">
           Sản phẩm này chưa có ưu đãi từ shop.

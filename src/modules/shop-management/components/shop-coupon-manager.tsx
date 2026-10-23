@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { AppSelect } from "@/components/app-select"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -235,15 +237,32 @@ export function ShopCouponManager({
                     <Label htmlFor={`${prefix}-discount-type`}>
                       Hình thức giảm
                     </Label>
-                    <select
-                      className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                    <AppSelect
                       id={`${prefix}-discount-type`}
                       name="discount_type"
                       defaultValue={editing?.discount_type ?? "fixed"}
-                    >
-                      <option value="fixed">Giảm số tiền (đ)</option>
-                      <option value="percent">Giảm phần trăm (%)</option>
-                    </select>
+                      disabled={pending}
+                      required
+                      aria-invalid={Boolean(errors.discount_type)}
+                      aria-describedby={
+                        errors.discount_type
+                          ? `${prefix}-discount-type-error`
+                          : undefined
+                      }
+                      options={[
+                        { value: "fixed", label: "Giảm số tiền (đ)" },
+                        { value: "percent", label: "Giảm phần trăm (%)" },
+                      ]}
+                    />
+                    {errors.discount_type?.[0] ? (
+                      <p
+                        id={`${prefix}-discount-type-error`}
+                        className="text-sm text-destructive"
+                        role="alert"
+                      >
+                        {errors.discount_type[0]}
+                      </p>
+                    ) : null}
                   </div>
                   {field(
                     "discount_value",
@@ -299,9 +318,12 @@ export function ShopCouponManager({
                     />
                   </div>
                   <div className="flex flex-wrap gap-3 text-xs">
-                    <button
+                    <Button
                       type="button"
-                      className="text-primary underline"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs"
+                      disabled={pending}
                       onClick={() =>
                         setSelected((current) => [
                           ...new Set([
@@ -312,28 +334,32 @@ export function ShopCouponManager({
                       }
                     >
                       Chọn tất cả kết quả
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="text-muted-foreground underline"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs text-muted-foreground"
+                      disabled={pending}
                       onClick={() => setSelected([])}
                     >
                       Bỏ chọn tất cả
-                    </button>
+                    </Button>
                   </div>
                   <div className="max-h-64 overflow-y-auto rounded-lg border">
                     {matching.map((product) => (
-                      <label
+                      <Label
                         key={product.id}
+                        htmlFor={`${prefix}-product-${product.id}`}
                         className="flex cursor-pointer items-center gap-3 border-b p-3 last:border-0 hover:bg-muted/40"
                       >
-                        <input
-                          type="checkbox"
-                          className="size-4 accent-primary"
+                        <Checkbox
+                          id={`${prefix}-product-${product.id}`}
                           checked={selected.includes(product.id)}
-                          onChange={(event) =>
+                          disabled={pending}
+                          onCheckedChange={(checked) =>
                             setSelected((current) =>
-                              event.target.checked
+                              checked
                                 ? [...current, product.id]
                                 : current.filter((id) => id !== product.id)
                             )
@@ -349,7 +375,7 @@ export function ShopCouponManager({
                             {!product.is_active ? " · Đang ẩn" : ""}
                           </span>
                         </span>
-                      </label>
+                      </Label>
                     ))}
                     {!matching.length ? (
                       <p className="p-4 text-sm text-muted-foreground">
@@ -359,15 +385,19 @@ export function ShopCouponManager({
                   </div>
                   {error("product_ids")}
                 </fieldset>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
+                <Label
+                  htmlFor={`${prefix}-is-active`}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <Checkbox
+                    id={`${prefix}-is-active`}
                     name="is_active"
-                    className="size-4 accent-primary"
+                    value="on"
+                    disabled={pending}
                     defaultChecked={editing?.is_active ?? true}
                   />
                   Bật ưu đãi để khách hàng có thể sử dụng
-                </label>
+                </Label>
                 <div className="flex gap-3">
                   <Button type="submit">
                     {pending

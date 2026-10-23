@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { ApiError, apiFetch } from "@/api/client"
 import type { Stocktake, StocktakeSummary } from "@/types/inventory"
+import { normalizeInventoryScanCode } from "@/modules/shop-management/lib/inventory-scan"
 
 type Result<T> =
   { success: true; data: T } | { success: false; message: string }
@@ -74,21 +75,22 @@ export async function scanStocktakeAction(
   quantity: number,
   scanId: string
 ): Promise<Result<Stocktake>> {
+  const normalized = normalizeInventoryScanCode(code)
   if (
     !uuid.safeParse(id).success ||
     !uuid.safeParse(scanId).success ||
     !Number.isInteger(quantity) ||
     quantity < 1 ||
     quantity > 999999 ||
-    !code.trim() ||
-    code.length > 255
+    !normalized ||
+    normalized.length > 255
   )
     return { success: false, message: "Mã quét hoặc số lượng không hợp lệ." }
   try {
     const result = await apiFetch<{ data: Stocktake }>({
       method: "POST",
       path: `/private/shop/stocktakes/${id}/scan`,
-      body: { code: code.trim(), quantity, scan_id: scanId },
+      body: { code: normalized, quantity, scan_id: scanId },
     })
     return { success: true, data: result.data }
   } catch (error) {
@@ -123,7 +125,9 @@ export async function updateStocktakeItemAction(
 
 export async function completeStocktakeAction(
   id: string,
-  adjustStock: boolean
+  adjustStock: boolean,
+  confirmationToken: string | null,
+  confirmed: boolean
 ): Promise<Result<Stocktake>> {
   if (!uuid.safeParse(id).success)
     return { success: false, message: "Phiên kiểm kê không hợp lệ." }
@@ -131,13 +135,51 @@ export async function completeStocktakeAction(
     const result = await apiFetch<{ data: Stocktake }>({
       method: "POST",
       path: `/private/shop/stocktakes/${id}/complete`,
-      body: { adjust_stock: adjustStock },
+      body: {
+        adjust_stock: adjustStock,
+        confirmation_token: confirmationToken,
+        confirmed,
+      },
     })
     if (adjustStock) {
       revalidatePath("/shop-manage")
       revalidatePath("/")
       revalidatePath("/shops", "layout")
     }
+    return { success: true, data: result.data }
+  } catch (error) {
+    return errorResult(error)
+  }
+}
+
+export async function saveStocktakeAction(
+  id: string
+): Promise<Result<Stocktake>> {
+  if (!uuid.safeParse(id).success)
+    return { success: false, message: "Phiên kiểm kê không hợp lệ." }
+  try {
+    const result = await apiFetch<{ data: Stocktake }>({
+      method: "POST",
+      path: `/private/shop/stocktakes/${id}/save`,
+    })
+    return { success: true, data: result.data }
+  } catch (error) {
+    return errorResult(error)
+  }
+}
+
+export async function undoStocktakeUnitAction(
+  id: string,
+  unitId: string
+): Promise<Result<Stocktake>> {
+  if (!uuid.safeParse(id).success || !uuid.safeParse(unitId).success)
+    return { success: false, message: "Mã kiểm kê không hợp lệ." }
+  try {
+    const result = await apiFetch<{ data: Stocktake }>({
+      method: "PATCH",
+      path: `/private/shop/stocktakes/${id}/units/${unitId}`,
+      body: { counted: false },
+    })
     return { success: true, data: result.data }
   } catch (error) {
     return errorResult(error)

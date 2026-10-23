@@ -1,4 +1,4 @@
-import type { ShopProduct } from "@/types/shop"
+import type { InventoryUnit } from "@/types/inventory-unit"
 
 export type InventoryLabel = {
   id: string
@@ -11,38 +11,17 @@ export type InventoryLabel = {
   price: number
 }
 
-export function inventoryLabels(products: ShopProduct[]): InventoryLabel[] {
-  return products.flatMap((product) =>
-    product.has_variants
-      ? product.variants
-          .filter((variant) => !variant.retired_at)
-          .map((variant) => ({
-            id: variant.id,
-            code: `DH:V:${variant.id}`,
-            sku: variant.sku,
-            name: product.name,
-            variant:
-              variant.variant_label ||
-              Object.entries(variant.option_values ?? {})
-                .map(([name, value]) => `${name}: ${value}`)
-                .join(" / "),
-            stock: variant.stock,
-            active: product.is_active && variant.is_active,
-            price: variant.price ?? product.price,
-          }))
-      : [
-          {
-            id: product.id,
-            code: `DH:P:${product.id}`,
-            sku: product.sku ?? "",
-            name: product.name,
-            variant: "",
-            stock: product.stock,
-            active: product.is_active,
-            price: product.price,
-          },
-        ]
-  )
+export function inventoryLabels(units: InventoryUnit[]): InventoryLabel[] {
+  return units.map((unit) => ({
+    id: unit.id,
+    code: unit.sku,
+    sku: unit.sku,
+    name: unit.product_name,
+    variant: unit.variant_name ?? "",
+    stock: unit.stock,
+    active: unit.is_active && unit.status === "available",
+    price: unit.price,
+  }))
 }
 
 function escapeHtml(value: string): string {
@@ -57,18 +36,37 @@ function escapeHtml(value: string): string {
 
 export async function printInventoryLabels(
   labels: InventoryLabel[],
-  copies: number
+  copies = 1
 ): Promise<void> {
+  if (!labels.length || labels.length > 1000 || copies !== 1) {
+    throw new Error("Mỗi đơn vị chỉ được in một tem mỗi lần, tối đa 1000 tem.")
+  }
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (
-    !labels.length ||
-    !Number.isInteger(copies) ||
-    copies < 1 ||
-    copies > 100 ||
-    labels.length * copies > 1000
-  )
-    throw new Error(
-      "Chọn sản phẩm và số tem từ 1–100, tối đa 1000 tem mỗi lần in."
+    labels.some(
+      (label) =>
+        !uuid.test(label.id) ||
+        label.code !== label.sku ||
+        label.stock !== 1 ||
+        !label.sku.trim() ||
+        label.sku !== label.sku.trim() ||
+        label.sku.length > 100
     )
+  ) {
+    throw new Error(
+      "Chỉ in tem có SKU và QR riêng từng đơn vị hàng hóa; không dùng mã sản phẩm hoặc biến thể gộp."
+    )
+  }
+  if (
+    new Set(labels.map(({ code }) => code)).size !== labels.length ||
+    new Set(labels.map(({ id }) => id.toLowerCase())).size !== labels.length ||
+    new Set(labels.map(({ sku }) => sku.trim().toUpperCase())).size !==
+      labels.length
+  ) {
+    throw new Error(
+      "Danh sách có SKU hoặc mã QR trùng. Mỗi đơn vị chỉ được chọn một lần."
+    )
+  }
   const popup = window.open("", "_blank", "width=900,height=700")
   if (!popup)
     throw new Error(
@@ -80,13 +78,13 @@ export async function printInventoryLabels(
     const { default: QRCode } = await import("qrcode")
     const cards = await Promise.all(
       labels.map(async (label) => {
-        const image = await QRCode.toDataURL(label.code, {
+        const image = await QRCode.toDataURL(label.sku, {
           width: 240,
           margin: 4,
           errorCorrectionLevel: "M",
         })
-        const card = `<article><img src="${image}" alt="QR"><div><strong>${escapeHtml(label.name)}</strong><p>${escapeHtml(label.variant)}</p><p>${escapeHtml(label.sku || label.code)}</p></div></article>`
-        return Array.from({ length: copies }, () => card).join("")
+        const card = `<article><img src="${image}" alt="QR SKU"><div><strong>${escapeHtml(label.name)}</strong><p>${escapeHtml(label.variant)}</p><p>${escapeHtml(label.sku)}</p></div></article>`
+        return card
       })
     )
     popup.document.open()

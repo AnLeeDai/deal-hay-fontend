@@ -929,11 +929,15 @@ Chạy `npm run test:ads` để kiểm tra lựa chọn cookie, script singleton
 
 Ảnh được thu nhỏ ngay trên trình duyệt, mỗi lần chỉ giải mã một ảnh và gửi tối đa hai ảnh đồng thời. Tiến độ dùng số byte thực của XHR, hiển thị theo từng ảnh và cả đợt; bước lưu nội dung được ghi riêng để tránh hiểu phần trăm gửi ảnh là đã lưu xong. Thumbnail được thu nhỏ trước khi hiển thị nhiều ảnh camera. Mỗi sản phẩm vẫn tối đa 50 ảnh bổ sung, mỗi ảnh gốc tối đa 30 MB; giới hạn tổng payload áp dụng sau chuẩn hóa.
 
-Liên kết **Độ trễ** trên header/menu mobile mở `/diagnostics` sau khi đăng nhập. Bấm đo để xem thời gian trình duyệt/Next.js/API và các dịch vụ database, cache, R2, Reverb. Không polling tự động. Phép đo dịch vụ được dùng lại tối đa 15 giây, có thời điểm đo; kết quả là thời gian yêu cầu ứng dụng và không phải ping mạng thuần túy. Cần deploy backend có `GET /api/diagnostics` cùng frontend này; không cần biến môi trường mới.
+Liên kết **Độ trễ** trên header/menu mobile mở `/diagnostics` sau khi đăng nhập. Trang đo kết nối có nút bắt đầu dạng vòng tròn, tiến độ kết nối → ping → tải xuống → tải lên, tốc độ Mbps trực tiếp và biểu đồ từ mẫu đo thực. Có thể dừng, đo lại và xem kết quả tạm thời khi lượt đo chưa hoàn tất. Không polling hoặc truyền dữ liệu đo trước khi người dùng bắt đầu.
 
-Lượt đo không gọi thêm `/auth/me`: server action đọc token từ cookie HTTP-only và để endpoint xác thực, xử lý token hết hạn bằng chuyển về đăng nhập rồi quay lại `/diagnostics`. Panel **Chi tiết lượt gọi API** hiển thị thời gian Laravel và số lượng/thời gian SQL của lượt gọi hiện tại, tách khỏi mẫu dịch vụ được cache; vẫn tương thích backend cũ chưa trả trường `request`.
+Server action đọc token từ cookie HTTP-only và gọi `POST /api/diagnostics/speedtest/session` để đổi lấy token chỉ dùng cho lượt đo, hết hạn sau 120 giây. Trình duyệt dùng token này để gửi mẫu trực tiếp đến `/ping`, `/download` và `/upload` trên API; token tài khoản không được trả về trình duyệt. Đường truyền đo không đi qua Next.js, thời gian tạo phiên được tách khỏi số đo. Backend có các endpoint này phải được triển khai cùng frontend; `NEXT_PUBLIC_API` phải là địa chỉ API mà trình duyệt truy cập được, với origin frontend trong `CORS_ALLOWED_ORIGINS`.
 
-Kiểm tra bằng `npm run test:image-upload`, `node --test tests/diagnostics-actions.test.mjs`, `npm run typecheck` và `npm run build`.
+Ping là trung vị của 7 yêu cầu HTTP sau một lượt làm nóng kết nối, gồm cả xử lý ứng dụng. Jitter là trung bình chênh lệch tuyệt đối giữa các mẫu ping liên tiếp. Mỗi chiều truyền 6 mẫu với kích thước tự điều chỉnh, tối đa 4 MiB/mẫu tải xuống và 2 MiB/mẫu tải lên. Tốc độ trung bình tính theo tổng byte chia tổng thời gian truyền; upload chỉ được ghi nhận sau khi server xác nhận đủ byte. Tổng payload thực tế tối đa 36 MiB/lượt, giao diện thông báo khoảng 40 MiB trước khi bắt đầu. Mẫu dùng dữ liệu ngẫu nhiên, không cache; server đọc rồi bỏ payload upload, không lưu vào DB/R2.
+
+Endpoint `GET /api/diagnostics` và action đo dịch vụ cũ vẫn được giữ để tương thích. Phép đo mạng trên giao diện không chạy các kiểm tra database, cache, R2 hoặc Reverb.
+
+Kiểm tra bằng `npm run test:speedtest`, `npm run test:image-upload`, `npm run typecheck` và `npm run build`.
 
 ## 32. Phí vận chuyển Hà Nội
 
