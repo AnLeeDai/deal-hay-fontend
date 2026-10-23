@@ -164,6 +164,51 @@ test("source image preparation still rejects files above 30 MB and galleries abo
   )
 })
 
+test("a staged 51-image product submission forwards references without any image binaries", async () => {
+  const form = productFormData()
+  form.delete("image")
+  form.set("primary_image_upload", "primary-upload-token")
+  for (let index = 0; index < 50; index++) {
+    form.append("gallery_image_uploads", `gallery-upload-token-${index}`)
+  }
+
+  const result = await actions.createProductAction(form)
+  assert.equal(result.success, true)
+  const payload = state.calls[0].body
+  assert.equal(payload.get("primary_image_upload"), "primary-upload-token")
+  assert.deepEqual(
+    payload.getAll("gallery_image_uploads[]"),
+    Array.from({ length: 50 }, (_, index) => `gallery-upload-token-${index}`)
+  )
+  assert.equal(payload.has("image"), false)
+  assert.equal(payload.has("gallery_images[]"), false)
+  assert.ok(
+    Array.from(payload.values()).every((value) => typeof value === "string")
+  )
+})
+
+test("staged uploads retain catalog validation and reject galleries above fifty images", async () => {
+  const form = productFormData()
+  form.delete("image")
+  form.set("primary_image_upload", "primary-upload-token")
+  for (let index = 0; index < 51; index++)
+    form.append("gallery_image_uploads", `gallery-${index}`)
+  const result = await actions.createProductAction(form)
+  assert.equal(result.success, false)
+  assert.ok(result.errors.gallery_image_uploads)
+  assert.equal(state.calls.length, 0)
+
+  form.delete("gallery_image_uploads")
+  form.set(
+    "catalog",
+    JSON.stringify({ has_variants: true, options: [], variants: [] })
+  )
+  const invalidCatalog = await actions.createProductAction(form)
+  assert.equal(invalidCatalog.success, false)
+  assert.ok(invalidCatalog.errors.variants)
+  assert.equal(state.calls.length, 0)
+})
+
 test("the server action still rejects combined image payloads above 32 MB", async () => {
   const cameraImage = new File(
     [new Uint8Array(17 * 1024 * 1024)],

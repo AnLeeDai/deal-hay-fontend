@@ -12,6 +12,8 @@ import {
 import type { Dispatch, SetStateAction } from "react"
 import type Echo from "laravel-echo"
 import type { ConnectionStatus } from "laravel-echo"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 import type { RealtimeConfig } from "@/api/chats/types"
 import { refreshUnreadCountsAction } from "@/modules/chats/actions"
@@ -55,6 +57,7 @@ export function RealtimeProvider({
   initialUnreadCounts: UnreadCounts
   children: React.ReactNode
 }) {
+  const router = useRouter()
   const [generation, setGeneration] = useState(0)
   const [configOverride, setConfigOverride] = useState<ConfigOverride | null>(
     null
@@ -335,8 +338,22 @@ export function RealtimeProvider({
               notifications: previous.notifications + 1,
             }))
             playNotificationSound(`notification:${payload.id}`)
+            if ("title" in payload && typeof payload.title === "string") {
+              toast(payload.title, {
+                id: payload.id,
+                description:
+                  "body" in payload && typeof payload.body === "string"
+                    ? payload.body
+                    : undefined,
+                action: {
+                  label: "Xem",
+                  onClick: () => router.push("/notifications"),
+                },
+              })
+            }
             void synchronizeUnreadCounts()
           })
+          .listen(".notifications.read", () => void synchronizeUnreadCounts())
           .subscribed(() => void synchronizeUnreadCounts())
 
         unsubscribeConnection = instance.connector.onConnectionChange(
@@ -368,6 +385,7 @@ export function RealtimeProvider({
     port,
     playNotificationSound,
     scheme,
+    router,
     setUnreadCounts,
     synchronizeUnreadCounts,
   ])

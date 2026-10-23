@@ -28,6 +28,8 @@ app/api/*
 
 hoặc Next.js Route Handler chỉ để forward request sang Laravel.
 
+Ngoại lệ có phạm vi cố định: `/api/live/[...path]` phục vụ tin nhắn, thông báo, heartbeat, số chưa đọc và chuẩn bị từng ảnh upload. Các yêu cầu này cần chạy song song, không chờ hàng đợi Server Action của trình duyệt. Route chỉ cho phép các cặp đường dẫn/phương thức được liệt kê trong mã, lấy token từ cookie HttpOnly trên server, kiểm tra cùng origin và truyền body dạng stream; trình duyệt không nhận token. Đọc trang và các nghiệp vụ khác vẫn dùng API layer/Server Actions như bên dưới. Các route xác thực WebSocket và tải tệp chat cũng thuộc nhóm ngoại lệ theo tính năng.
+
 Luồng dữ liệu chuẩn:
 
 ```text

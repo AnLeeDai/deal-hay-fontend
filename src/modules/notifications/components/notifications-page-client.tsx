@@ -1,11 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   BellIcon,
-  CheckCheckIcon,
   ExternalLinkIcon,
   MessageSquareWarningIcon,
 } from "lucide-react"
@@ -24,7 +23,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Form,
@@ -39,12 +38,9 @@ import { formatDate } from "@/lib/format"
 import { applyServerErrors } from "@/lib/form-utils"
 import type { PaginatedResponse } from "@/types/common"
 import type { AppNotification } from "@/types/notification"
-import {
-  markAllNotificationsReadAction,
-  markNotificationReadAction,
-  notificationAppealAction,
-  synchronizeNotificationsAction,
-} from "@/modules/notifications/actions"
+import { liveApiFetch } from "@/api/live-client"
+import { useVisibleNotifications } from "@/modules/notifications/hooks/use-visible-notifications"
+import { notificationAppealAction } from "@/modules/notifications/actions"
 import {
   notificationAppealSchema,
   type NotificationAppealValues,
@@ -118,12 +114,51 @@ export function NotificationsPageClient({
   page: PaginatedResponse<AppNotification>
   currentUserId?: string
 }) {
-  const [isPending, startTransition] = useTransition()
   const [notificationPage, setNotificationPage] = useState(page)
   const [newNotificationCount, setNewNotificationCount] = useState(0)
   const notificationRevision = useRef(0)
   const knownNotificationIds = useRef(new Set(page.data.map(({ id }) => id)))
   const { echo, synchronizeUnreadCounts } = useRealtime()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const pendingReads = useRef(new Set<string>())
+  const applyRead = useCallback(
+    (ids: string[], readAt: string) => {
+      notificationRevision.current += 1
+      const readIds = new Set(ids)
+      setNotificationPage((previous) => ({
+        ...previous,
+        data: previous.data.map((notification) =>
+          readIds.has(notification.id)
+            ? { ...notification, read_at: notification.read_at ?? readAt }
+            : notification
+        ),
+      }))
+      void synchronizeUnreadCounts()
+    },
+    [synchronizeUnreadCounts]
+  )
+  const readVisible = useCallback(
+    async (ids: string[]) => {
+      const unread = ids.filter((id) => !pendingReads.current.has(id))
+      if (!unread.length) return
+      unread.forEach((id) => pendingReads.current.add(id))
+      try {
+        await liveApiFetch("/notifications/read-visible", {
+          method: "PATCH",
+          body: { notification_ids: unread },
+        })
+        applyRead(unread, new Date().toISOString())
+      } finally {
+        unread.forEach((id) => pendingReads.current.delete(id))
+      }
+    },
+    [applyRead]
+  )
+  useVisibleNotifications(
+    containerRef,
+    notificationPage.data.filter(({ read_at }) => !read_at).map(({ id }) => id),
+    readVisible
+  )
   const currentPage = page.current_page ?? 1
   const pageSize =
     "per_page" in page && typeof page.per_page === "number" && page.per_page > 0
@@ -147,7 +182,10 @@ export function NotificationsPageClient({
         while (synchronizationRequested && !disposed) {
           synchronizationRequested = false
           const revision = notificationRevision.current
-          const updatedPage = await synchronizeNotificationsAction(currentPage)
+          const response = await liveApiFetch<{
+            notification_page: PaginatedResponse<AppNotification>
+          }>("/notifications", { searchParams: { page: currentPage } })
+          const updatedPage = response.notification_page
           if (disposed) return
           if (revision !== notificationRevision.current) {
             synchronizationRequested = true
@@ -214,49 +252,33 @@ export function NotificationsPageClient({
       }
     }
 
+    const onRead = (payload: {
+      notification_ids?: string[]
+      read_at?: string
+    }) => {
+      if (
+        Array.isArray(payload?.notification_ids) &&
+        typeof payload.read_at === "string"
+      )
+        applyRead(payload.notification_ids, payload.read_at)
+    }
+    channel.listen(".notifications.read", onRead)
     channel.listen(".notification.created", onNotification)
     channel.listen(".pusher:subscription_succeeded", onSubscribed)
     if (channel.subscription.subscribed) void synchronize()
 
     return () => {
       disposed = true
+      channel.stopListening(".notifications.read", onRead)
       channel.stopListening(".notification.created", onNotification)
       channel.stopListening(".pusher:subscription_succeeded", onSubscribed)
     }
-  }, [currentPage, currentUserId, echo, pageSize])
+  }, [applyRead, currentPage, currentUserId, echo, pageSize])
 
   return (
     <div className="space-y-8">
       <PageHeader
-        actions={
-          <Button
-            disabled={isPending}
-            onClick={() =>
-              startTransition(async () => {
-                try {
-                  await markAllNotificationsReadAction()
-                  notificationRevision.current += 1
-                  const readAt = new Date().toISOString()
-                  setNotificationPage((previous) => ({
-                    ...previous,
-                    data: previous.data.map((notification) => ({
-                      ...notification,
-                      read_at: notification.read_at ?? readAt,
-                    })),
-                  }))
-                  void synchronizeUnreadCounts()
-                  toast.success("Đã đánh dấu tất cả thông báo là đã đọc.")
-                } catch {
-                  toast.error("Không thể cập nhật thông báo.")
-                }
-              })
-            }
-          >
-            <CheckCheckIcon />{" "}
-            {isPending ? "Đang cập nhật..." : "Đánh dấu tất cả đã đọc"}
-          </Button>
-        }
-        description="Xem trạng thái thông báo, đánh dấu đã đọc hoặc gửi ticket khiếu nại nếu cần."
+        description="Thông báo cập nhật trực tiếp và tự chuyển sang đã đọc khi bạn xem nội dung."
         title="Trung tâm thông báo"
       />
       {newNotificationCount > 0 ? (
@@ -273,13 +295,17 @@ export function NotificationsPageClient({
           </Link>
         </div>
       ) : null}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div ref={containerRef} className="grid gap-4 lg:grid-cols-2">
         {notificationPage.data.map((notification) => (
           <Card
             key={notification.id}
             className={!notification.read_at ? "ring-primary/30" : undefined}
           >
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <CardHeader
+              data-notification-id={notification.id}
+              data-unread={!notification.read_at}
+              className="flex flex-row items-start justify-between gap-4"
+            >
               <div className="flex min-w-0 gap-3">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-primary">
                   <BellIcon className="size-4" />
@@ -305,6 +331,9 @@ export function NotificationsPageClient({
                 {notification.action_url ? (
                   <Link
                     href={notification.action_url}
+                    onClick={() => {
+                      void readVisible([notification.id]).catch(() => {})
+                    }}
                     className={buttonVariants({
                       size: "sm",
                       variant: "outline",
@@ -312,35 +341,6 @@ export function NotificationsPageClient({
                   >
                     <ExternalLinkIcon /> Xem chi tiết
                   </Link>
-                ) : null}
-                {!notification.read_at ? (
-                  <Button
-                    disabled={isPending}
-                    variant="outline"
-                    onClick={() =>
-                      startTransition(async () => {
-                        try {
-                          await markNotificationReadAction(notification.id)
-                          notificationRevision.current += 1
-                          const readAt = new Date().toISOString()
-                          setNotificationPage((previous) => ({
-                            ...previous,
-                            data: previous.data.map((existing) =>
-                              existing.id === notification.id
-                                ? { ...existing, read_at: readAt }
-                                : existing
-                            ),
-                          }))
-                          void synchronizeUnreadCounts()
-                          toast.success("Đã đánh dấu thông báo là đã đọc.")
-                        } catch {
-                          toast.error("Không thể cập nhật thông báo.")
-                        }
-                      })
-                    }
-                  >
-                    <CheckCheckIcon /> Đánh dấu đã đọc
-                  </Button>
                 ) : null}
               </div>
               <Accordion>

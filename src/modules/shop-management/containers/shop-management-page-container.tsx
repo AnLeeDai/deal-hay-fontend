@@ -3,7 +3,9 @@ import { redirect } from "next/navigation"
 import { getShopManage } from "@/api/profile/queries"
 import { ShopManagementClient } from "@/modules/shop-management/components/shop-management-client"
 
-export async function ShopManagementPageContainer() {
+export async function ShopManagementPageContainer({
+  initialTab,
+}: { initialTab?: string } = {}) {
   const data = await getShopManage()
   const user = data.auth?.user
 
@@ -21,6 +23,20 @@ export async function ShopManagementPageContainer() {
       metrics={data.shopMetrics ?? data.metrics}
       inventoryMovements={data.inventoryMovements ?? []}
       productReviews={data.productReviews ?? []}
+      initialTab={
+        initialTab &&
+        [
+          "overview",
+          "products",
+          "inventory",
+          "orders",
+          "promotions",
+          "reviews",
+          "settings",
+        ].includes(initialTab)
+          ? initialTab
+          : "overview"
+      }
     />
   )
 }

@@ -5,7 +5,12 @@ import { ShopManagementPageContainer } from "@/modules/shop-management/container
 
 export const metadata: Metadata = { title: "Quản lý shop" }
 
-export default async function ShopManagePage() {
+export default async function ShopManagePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
   await requireAuth()
-  return <ShopManagementPageContainer />
+  const { tab } = await searchParams
+  return <ShopManagementPageContainer initialTab={tab} />
 }

@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import type { ConnectionStatus } from "laravel-echo"
 import {
   ArrowLeftIcon,
-  CheckCheckIcon,
   LoaderCircleIcon,
   WifiIcon,
   WifiOffIcon,
@@ -98,7 +97,7 @@ export function ChatsPageClient({
   )
   const conversationItems = state.conversations
   const activeConversation = state.selectedConversation
-  const [readPending, startReadTransition] = useTransition()
+  const [, startReadTransition] = useTransition()
   const [synchronizationFailed, setSynchronizationFailed] = useState(false)
   const [replyDraft, setReplyDraft] = useState<{
     conversationId: string
@@ -117,6 +116,7 @@ export function ChatsPageClient({
       ? replyDraft.reply
       : null
   const markAsReadRef = useRef<() => void>(() => {})
+  const reading = useRef(false)
 
   useEffect(() => {
     mounted.current = true
@@ -149,7 +149,8 @@ export function ChatsPageClient({
         setState((current) => reconcileChatState(current, snapshot, changed))
         if (
           snapshot.selectedConversation?.unread_count &&
-          document.visibilityState === "visible"
+          document.visibilityState === "visible" &&
+          document.hasFocus()
         ) {
           markAsReadRef.current()
         }
@@ -162,13 +163,15 @@ export function ChatsPageClient({
 
   const markAsRead = useCallback(
     (showConfirmation = false, socketId?: string) => {
-      if (!conversationId || !conversationSlug) return
+      if (!conversationId || !conversationSlug || reading.current) return
+      reading.current = true
       const revision = conversationRevisions.current.get(conversationId)
       startReadTransition(async () => {
         const result = await markConversationReadAction(
           conversationSlug,
           socketId
         )
+        reading.current = false
         if (!mounted.current) return
         if (!result.success) {
           if (showConfirmation) toast.error(result.message)
@@ -214,7 +217,8 @@ export function ChatsPageClient({
         synchronize()
       if (
         activeConversation?.id === message.conversation_id &&
-        document.visibilityState === "visible"
+        document.visibilityState === "visible" &&
+        document.hasFocus()
       ) {
         markAsRead(false, socketIdRef.current)
       }
@@ -364,12 +368,22 @@ export function ChatsPageClient({
 
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") markAsRead(false, socketId)
+      if (
+        document.visibilityState === "visible" &&
+        document.hasFocus() &&
+        activeConversation?.unread_count
+      )
+        markAsRead(false, socketId)
     }
+    const timer = window.setTimeout(handleVisibilityChange, 300)
     document.addEventListener("visibilitychange", handleVisibilityChange)
-    return () =>
+    window.addEventListener("focus", handleVisibilityChange)
+    return () => {
+      window.clearTimeout(timer)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
-  }, [markAsRead, socketId])
+      window.removeEventListener("focus", handleVisibilityChange)
+    }
+  }, [activeConversation?.unread_count, markAsRead, socketId])
 
   useEffect(() => {
     const root = document.documentElement
@@ -457,21 +471,6 @@ export function ChatsPageClient({
                             : "Không trực tuyến"}
                         </p>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        aria-label="Đánh dấu đã đọc"
-                        disabled={readPending}
-                        size="icon-sm"
-                        variant="outline"
-                        onClick={() => markAsRead(true, socketId)}
-                      >
-                        {readPending ? (
-                          <LoaderCircleIcon className="animate-spin" />
-                        ) : (
-                          <CheckCheckIcon />
-                        )}
-                      </Button>
                     </div>
                   </div>
 

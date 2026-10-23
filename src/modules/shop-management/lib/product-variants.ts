@@ -236,7 +236,10 @@ export function productFormErrors(
   const result: Record<string, string[]> = {}
   for (const [path, messages] of Object.entries(errors)) {
     // API values are an array; the form edits them in one comma-separated input.
-    const field = path.replace(/^(options\.\d+\.values)\.\d+$/, "$1")
+    const field = path
+      .replace(/^(options\.\d+\.values)\.\d+$/, "$1")
+      .replace(/^primary_image_upload$/, "image")
+      .replace(/^gallery_image_uploads(?:\.\d+)?$/, "gallery_images")
     result[field] = [...(result[field] ?? []), ...messages]
   }
   return result

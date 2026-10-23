@@ -41,6 +41,7 @@ export type ShopProduct = {
 export type ShopCoupon = {
   id: string
   code: string
+  product_ids: string[]
   name: string
   discount_type: "fixed" | "percent"
   discount_value: number

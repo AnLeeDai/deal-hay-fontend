@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { Checkbox } from "@/components/ui/checkbox"
 import { useState, useTransition } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
@@ -24,7 +23,6 @@ import {
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
-import { FormDateTimePicker } from "@/components/form-date-time-picker"
 import { FormSelect } from "@/components/form-select"
 import { FormSubmitButton } from "@/components/form-submit-button"
 import { AddressFields } from "@/components/address-fields"
@@ -111,8 +109,6 @@ import {
 } from "@/modules/profile/schemas/profile"
 import {
   adjustInventoryAction,
-  createCouponAction,
-  deleteCouponAction,
   deleteProductAction,
   reorderCategoriesAction,
   replyReviewAction,
@@ -121,14 +117,14 @@ import {
 } from "@/modules/shop-management/actions"
 import {
   adjustInventorySchema,
-  createCouponSchema,
   replyReviewSchema,
   type AdjustInventoryValues,
-  type CreateCouponValues,
   type ReplyReviewValues,
 } from "@/modules/shop-management/schemas/shop-management"
 import { CreateProductForm } from "@/modules/shop-management/components/create-product-form"
 import { ProductPricingForm } from "@/modules/shop-management/components/product-pricing-form"
+import { ShopInventoryWorkspace } from "@/modules/shop-management/components/shop-inventory-workspace"
+import { ShopCouponManager } from "@/modules/shop-management/components/shop-coupon-manager"
 import { ShopShippingSettings } from "@/modules/shop-management/components/shop-shipping-settings"
 
 function ProductInventoryForm({ product }: { product: ShopProduct }) {
@@ -559,264 +555,6 @@ function ShopProfileForm({ user }: { user: User }) {
   )
 }
 
-function CreateCouponForm() {
-  const [isPending, startTransition] = useTransition()
-  const form = useForm<CreateCouponValues>({
-    resolver: zodResolver(createCouponSchema),
-    defaultValues: {
-      code: "",
-      name: "",
-      discount_type: "fixed",
-      discount_value: 1,
-      minimum_order_amount: 0,
-      maximum_discount_amount: undefined,
-      usage_limit: undefined,
-      starts_at: "",
-      ends_at: "",
-      is_active: true,
-    },
-  })
-
-  const onSubmit = form.handleSubmit((values) => {
-    startTransition(async () => {
-      const state = await createCouponAction(values)
-      const hasFieldErrors = applyServerErrors(state.errors, form.setError)
-
-      if (state.success) {
-        toast.success(state.message)
-        form.reset({
-          code: "",
-          name: "",
-          discount_type: "fixed",
-          discount_value: 1,
-          minimum_order_amount: 0,
-          maximum_discount_amount: undefined,
-          usage_limit: undefined,
-          starts_at: "",
-          ends_at: "",
-          is_active: true,
-        })
-        return
-      }
-
-      if (!hasFieldErrors && state.message) {
-        toast.error(state.message)
-      }
-    })
-  })
-
-  return (
-    <Form {...form}>
-      <form className="space-y-4" noValidate onSubmit={onSubmit}>
-        <div className="grid gap-4 md:grid-cols-3">
-          <FormField
-            control={form.control}
-            name="code"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Mã coupon</FormLabel>
-                <FormControl>
-                  <Input type="text" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tên hiển thị</FormLabel>
-                <FormControl>
-                  <Input type="text" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="discount_type"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Loại giảm giá</FormLabel>
-                <FormSelect
-                  inputRef={field.ref}
-                  name={field.name}
-                  options={[
-                    { label: "Số tiền cố định", value: "fixed" },
-                    { label: "Phần trăm", value: "percent" },
-                  ]}
-                  value={field.value}
-                  onBlur={field.onBlur}
-                  onValueChange={field.onChange}
-                />
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="discount_value"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Giá trị giảm</FormLabel>
-                <FormControl>
-                  <Input
-                    inputMode="numeric"
-                    type="number"
-                    {...field}
-                    value={Number.isFinite(field.value) ? field.value : ""}
-                    onChange={(event) =>
-                      field.onChange(
-                        event.target.value === ""
-                          ? Number.NaN
-                          : Number(event.target.value)
-                      )
-                    }
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="minimum_order_amount"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Đơn tối thiểu</FormLabel>
-                <FormControl>
-                  <Input
-                    inputMode="numeric"
-                    type="number"
-                    {...field}
-                    value={Number.isFinite(field.value) ? field.value : ""}
-                    onChange={(event) =>
-                      field.onChange(
-                        event.target.value === ""
-                          ? Number.NaN
-                          : Number(event.target.value)
-                      )
-                    }
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="usage_limit"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Giới hạn sử dụng</FormLabel>
-                <FormControl>
-                  <Input
-                    inputMode="numeric"
-                    type="number"
-                    {...field}
-                    value={field.value ?? ""}
-                    onChange={(event) =>
-                      field.onChange(
-                        event.target.value === ""
-                          ? undefined
-                          : Number(event.target.value)
-                      )
-                    }
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="maximum_discount_amount"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Giảm tối đa</FormLabel>
-                <FormControl>
-                  <Input
-                    inputMode="numeric"
-                    placeholder="Không giới hạn"
-                    type="number"
-                    {...field}
-                    value={field.value ?? ""}
-                    onChange={(event) =>
-                      field.onChange(
-                        event.target.value === ""
-                          ? undefined
-                          : Number(event.target.value)
-                      )
-                    }
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="starts_at"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Bắt đầu</FormLabel>
-                <FormDateTimePicker
-                  placeholder="Chọn ngày bắt đầu"
-                  value={field.value}
-                  onBlur={field.onBlur}
-                  onChange={field.onChange}
-                />
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="ends_at"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Kết thúc</FormLabel>
-                <FormDateTimePicker
-                  placeholder="Chọn ngày kết thúc"
-                  value={field.value}
-                  onBlur={field.onBlur}
-                  onChange={field.onChange}
-                />
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <FormField
-          control={form.control}
-          name="is_active"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="items-center">
-                <Checkbox
-                  checked={field.value}
-                  onBlur={field.onBlur}
-                  onCheckedChange={field.onChange}
-                />
-                <span>Kích hoạt ngay</span>
-              </FormLabel>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormSubmitButton
-          idleText="Tạo coupon"
-          pending={isPending}
-          pendingText="Đang tạo..."
-        />
-      </form>
-    </Form>
-  )
-}
-
 const orderStatusLabels: Record<ShopOrder["status"], string> = {
   pending: "Chờ xác nhận",
   confirmed: "Đã xác nhận",
@@ -1181,88 +919,6 @@ function InventoryMovementList({
   )
 }
 
-function CouponListItem({ coupon }: { coupon: ShopCoupon }) {
-  const [isPending, startTransition] = useTransition()
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const discount =
-    coupon.discount_type === "percent"
-      ? `${coupon.discount_value}%`
-      : formatCurrency(coupon.discount_value)
-
-  const deleteCoupon = () => {
-    startTransition(async () => {
-      try {
-        const state = await deleteCouponAction(coupon.id)
-        if (state.success) {
-          setDeleteOpen(false)
-          toast.success(state.message)
-        } else {
-          toast.error(state.message)
-        }
-      } catch (error) {
-        toast.error(mutationErrorMessage(error, "Không thể xoá coupon."))
-      }
-    })
-  }
-
-  return (
-    <div className="rounded-xl border p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium">{coupon.code}</p>
-            <Badge variant={coupon.is_active ? "default" : "outline"}>
-              {coupon.is_active ? "Đang hoạt động" : "Đang tắt"}
-            </Badge>
-          </div>
-          <p className="mt-1 text-sm">{coupon.name}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Giảm {discount} • đơn tối thiểu{" "}
-            {formatCurrency(coupon.minimum_order_amount)} • đã dùng{" "}
-            {coupon.used_count}
-            {coupon.usage_limit ? `/${coupon.usage_limit}` : " lần"}
-          </p>
-          {coupon.starts_at || coupon.ends_at ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Hiệu lực: {formatDate(coupon.starts_at)} –{" "}
-              {formatDate(coupon.ends_at)}
-            </p>
-          ) : null}
-        </div>
-        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogTrigger
-            render={<Button disabled={isPending} variant="destructive" />}
-          >
-            <Trash2Icon /> Xoá
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogMedia>
-                <Trash2Icon />
-              </AlertDialogMedia>
-              <AlertDialogTitle>Xoá coupon?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Coupon “{coupon.code}” sẽ không còn được áp dụng cho đơn hàng
-                mới.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isPending}>Huỷ</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={isPending}
-                variant="destructive"
-                onClick={deleteCoupon}
-              >
-                {isPending ? "Đang xoá..." : "Xoá coupon"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </div>
-  )
-}
-
 function OrderCard({ order }: { order: ShopOrder }) {
   const [isPending, startTransition] = useTransition()
   const [cancelOpen, setCancelOpen] = useState(false)
@@ -1442,6 +1098,7 @@ export function ShopManagementClient({
   metrics,
   inventoryMovements,
   productReviews,
+  initialTab = "overview",
 }: {
   user: User
   categories: ShopCategory[]
@@ -1451,9 +1108,10 @@ export function ShopManagementClient({
   metrics?: ShopMetrics
   inventoryMovements: InventoryMovement[]
   productReviews: ShopProductReview[]
+  initialTab?: string
 }) {
   const [pending, startTransition] = useTransition()
-  const [activeTab, setActiveTab] = useState("overview")
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [orderedCategories, setOrderedCategories] = useState(
     categories.map((category) => category.id)
   )
@@ -1844,6 +1502,7 @@ export function ShopManagementClient({
         </TabsContent>
 
         <TabsContent className="space-y-6 pt-4" value="inventory">
+          <ShopInventoryWorkspace products={products} />
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
             <Card>
               <CardHeader>
@@ -1909,41 +1568,7 @@ export function ShopManagementClient({
         </TabsContent>
 
         <TabsContent className="space-y-6 pt-4" value="promotions">
-          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
-            <Card>
-              <CardHeader>
-                <CardTitle>Tạo coupon</CardTitle>
-                <CardDescription>
-                  Thiết lập mức giảm, điều kiện và thời gian áp dụng.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CreateCouponForm />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Danh sách coupon</CardTitle>
-                <CardDescription>
-                  Theo dõi các mã giảm giá đã tạo cho cửa hàng.
-                </CardDescription>
-                <CardAction>
-                  <Badge variant="secondary">{coupons.length} coupon</Badge>
-                </CardAction>
-              </CardHeader>
-              <CardContent className="gap-3">
-                {coupons.map((coupon) => (
-                  <CouponListItem key={coupon.id} coupon={coupon} />
-                ))}
-                {coupons.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Chưa có coupon nào.
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
-          </div>
+          <ShopCouponManager coupons={coupons} products={products} />
         </TabsContent>
 
         <TabsContent className="space-y-6 pt-4" value="reviews">

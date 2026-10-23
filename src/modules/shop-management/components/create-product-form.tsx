@@ -40,6 +40,7 @@ import { ImageUploadProgress } from "@/components/image-upload-progress"
 import { useImageUpload } from "@/hooks/use-image-upload"
 import type { ShopCategory } from "@/types/shop"
 import { createProductAction } from "@/modules/shop-management/actions"
+import { discardProductImageUploadsAction } from "@/modules/media/actions"
 import {
   buildProductVariants,
   productFormErrors,
@@ -203,9 +204,18 @@ export function CreateProductForm({
     )
 
     startTransition(async () => {
-      const state = await runUploadAction(async () =>
-        createProductAction(await prepareUploads(formData, "product"))
-      )
+      let prepared: FormData | undefined
+      const state = await runUploadAction(async () => {
+        prepared = await prepareUploads(formData, "product")
+        return createProductAction(prepared)
+      })
+      if (!state.success && prepared) {
+        const tokens = [
+          prepared.get("primary_image_upload"),
+          ...prepared.getAll("gallery_image_uploads"),
+        ].filter((token): token is string => typeof token === "string")
+        await discardProductImageUploadsAction(tokens)
+      }
       const hasFieldErrors = applyServerErrors(
         productFormErrors(state.errors),
         form.setError

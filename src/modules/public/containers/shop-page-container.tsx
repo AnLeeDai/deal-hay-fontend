@@ -26,6 +26,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { UserAvatar } from "@/components/user-avatar"
 import { ShopCategoryFilter } from "@/modules/public/components/shop-category-filter"
+import { ShopOffers } from "@/modules/public/components/shop-offers"
 
 export async function ShopPageContainer({
   shopUserCode,
@@ -153,6 +154,8 @@ export async function ShopPageContainer({
           </div>
         </CardContent>
       </Card>
+
+      <ShopOffers shopCode={shopUserCode} />
 
       <section className="space-y-5">
         <div>

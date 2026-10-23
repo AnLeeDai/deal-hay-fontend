@@ -33,7 +33,7 @@ const schemaUrl = transpileModule("../src/modules/chats/schemas/chats.ts", {
   zod: import.meta.resolve("zod"),
 })
 const apiUrl = moduleUrl(`
-  export class ApiError extends Error {}
+  export class LiveApiError extends Error {}
   export const sentMessages = []
   export async function sendChatMessage(...args) {
     sentMessages.push(args)
@@ -47,10 +47,8 @@ const apiUrl = moduleUrl(`
 `)
 const { sendMessageAction } = await import(
   transpileModule("../src/modules/chats/actions.ts", {
-    "@/api/client": apiUrl,
-    "@/api/auth/queries": apiUrl,
-    "@/api/chats/mutations": apiUrl,
-    "@/api/chats/queries": apiUrl,
+    "@/api/live-client": apiUrl,
+    "@/api/chats/browser": apiUrl,
     "@/modules/chats/schemas/chats": schemaUrl,
   })
 )

@@ -38,6 +38,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ShippingRewardOffer } from "@/modules/public/components/shipping-reward-offer"
+import { ShopOfferSelector } from "@/modules/public/components/shop-offers"
+import { loadShopOffersAction } from "@/modules/public/shop-offer-actions"
+import { shopOfferDiscount } from "@/modules/public/lib/shop-offers"
+import type { ShopOffer } from "@/types/shop-coupon"
 import { productCheckoutHref } from "@/modules/public/lib/product-checkout"
 import { orderProductAction, startChatAction } from "@/modules/public/actions"
 import {
@@ -102,6 +106,12 @@ export function ProductCheckout({
   const [codesPending, startCodesTransition] = useTransition()
   const [reloadCodes, setReloadCodes] = useState(0)
   const [enteredCode, setEnteredCode] = useState("")
+  const [shopOffers, setShopOffers] = useState<ShopOffer[]>([])
+  const [selectedShopOfferId, setSelectedShopOfferId] = useState("")
+  const [shopOffersError, setShopOffersError] = useState<string | null>(null)
+  const [shopOffersPending, startShopOffersTransition] = useTransition()
+  const [reloadShopOffers, setReloadShopOffers] = useState(0)
+  const [offerTime, setOfferTime] = useState(() => Date.now())
   const [showShippingOffer, setShowShippingOffer] = useState(false)
   const [shippingCode, setShippingCode] = useState<ShippingDiscountCode | null>(
     null
@@ -197,6 +207,22 @@ export function ProductCheckout({
     quantity,
     selectedDiscountCodes
   )
+  const selectedShopOffer = shopOffers.find(
+    (offer) => offer.id === selectedShopOfferId
+  )
+  const shopDiscount = shopOfferDiscount(
+    selectedShopOffer,
+    summary.subtotal,
+    summary.total,
+    offerTime
+  )
+  const shopCouponUnconfirmed =
+    Boolean(selectedShopOfferId) &&
+    (shopOffersPending ||
+      Boolean(shopOffersError) ||
+      !selectedShopOffer ||
+      shopDiscount <= 0)
+  const finalProductTotal = summary.total - shopDiscount
   const productHref = `/shops/${encodeURIComponent(shop.code)}/products/${encodeURIComponent(product.slug)}`
   const productReturnHref = variant
     ? `${productHref}?variant_id=${encodeURIComponent(variant.id)}`
@@ -214,7 +240,40 @@ export function ProductCheckout({
     unconfirmedCodes ||
     shippingBlocked ||
     shippingRewardPending ||
-    shippingCodeUnconfirmed
+    shippingCodeUnconfirmed ||
+    shopCouponUnconfirmed
+
+  useEffect(() => {
+    let active = true
+    startShopOffersTransition(async () => {
+      try {
+        const result = await loadShopOffersAction(shop.code, product.id)
+        if (!active) return
+        setShopOffers(result.data ?? [])
+        setShopOffersError(result.success ? null : result.message)
+      } catch {
+        if (!active) return
+        setShopOffersError("Không tải được ưu đãi từ shop.")
+      }
+    })
+    return () => {
+      active = false
+    }
+  }, [shop.code, product.id, reloadShopOffers])
+
+  useEffect(() => {
+    const update = () => setOfferTime(Date.now())
+    const focus = () => {
+      update()
+      setReloadShopOffers((value) => value + 1)
+    }
+    const interval = window.setInterval(update, 30_000)
+    window.addEventListener("focus", focus)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener("focus", focus)
+    }
+  }, [])
 
   function openProductChat() {
     if (!shop.viewer.can_interact) {
@@ -394,6 +453,12 @@ export function ProductCheckout({
         )
         return
       }
+      if (shopCouponUnconfirmed) {
+        toast.error(
+          "Ưu đãi từ shop chưa được xác nhận hoặc không còn đủ điều kiện. Vui lòng tải lại hoặc bỏ chọn ưu đãi."
+        )
+        return
+      }
       submitting.current = true
       try {
         const state = await orderProductAction(
@@ -403,6 +468,7 @@ export function ProductCheckout({
             ...values,
             variant_id: variant?.id,
             discount_codes: selectedCodes.length ? selectedCodes : undefined,
+            shop_coupon_code: selectedShopOffer?.code,
             shipping_discount_code: appliedShippingCode?.code,
             quoted_shipping_fee:
               currentShippingQuote?.data?.configured &&
@@ -425,12 +491,14 @@ export function ProductCheckout({
             state.errors?.quoted_shipping_fee ||
             discountCodeError ||
             state.errors?.shipping_discount_code ||
+            state.errors?.shop_coupon_code ||
             state.errors?.variant_id
           ) {
             toast.error(
               state.errors?.quoted_shipping_fee?.[0] ||
                 discountCodeError ||
                 state.errors?.shipping_discount_code?.[0] ||
+                state.errors?.shop_coupon_code?.[0] ||
                 state.errors?.variant_id?.[0] ||
                 state.message
             )
@@ -440,6 +508,8 @@ export function ProductCheckout({
           if (state.errors?.shipping_discount_code)
             setReloadShippingCode((value) => value + 1)
           if (discountCodeError) setReloadCodes((value) => value + 1)
+          if (state.errors?.shop_coupon_code)
+            setReloadShopOffers((value) => value + 1)
           return
         }
         toast.success(
@@ -863,6 +933,17 @@ export function ProductCheckout({
                 </div>
               </div>
               <div className="space-y-4 p-4 sm:p-6">
+                <ShopOfferSelector
+                  offers={shopOffers}
+                  subtotal={summary.subtotal}
+                  remaining={summary.total}
+                  selectedId={selectedShopOfferId}
+                  onSelect={setSelectedShopOfferId}
+                  pending={shopOffersPending}
+                  error={shopOffersError}
+                  onReload={() => setReloadShopOffers((value) => value + 1)}
+                  disabled={pending}
+                />
                 <fieldset
                   className="space-y-3"
                   disabled={pending || codesPending}
@@ -1149,6 +1230,18 @@ export function ProductCheckout({
                             : "—"}
                       </dd>
                     </div>
+                    {selectedShopOfferId ? (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-muted-foreground">
+                          Ưu đãi từ shop
+                        </dt>
+                        <dd className="text-primary">
+                          {shopCouponUnconfirmed
+                            ? "Chưa xác nhận"
+                            : `−${formatCurrency(shopDiscount)}`}
+                        </dd>
+                      </div>
+                    ) : null}
                     <div className="flex justify-between gap-3">
                       <dt className="text-muted-foreground">Phí vận chuyển</dt>
                       <dd className="text-right">
@@ -1182,9 +1275,10 @@ export function ProductCheckout({
                       {!validQuantity ||
                       unconfirmedCodes ||
                       shippingBlocked ||
+                      shopCouponUnconfirmed ||
                       shippingCodeUnconfirmed
                         ? "—"
-                        : formatCurrency(summary.total + shippingTotal)}
+                        : formatCurrency(finalProductTotal + shippingTotal)}
                     </span>
                   </div>
                   {!validQuantity ? (
@@ -1204,6 +1298,12 @@ export function ProductCheckout({
                       Đang chờ xác nhận mã vận chuyển.
                     </p>
                   ) : null}
+                  {shopCouponUnconfirmed ? (
+                    <p className="text-xs text-destructive" role="alert">
+                      Tải lại hoặc bỏ chọn ưu đãi từ shop không còn đủ điều
+                      kiện.
+                    </p>
+                  ) : null}
                   {shippingRewardPending ? (
                     <p className="text-xs text-muted-foreground">
                       Hoàn tất hoặc hủy xem quảng cáo trước khi xác nhận đơn.
@@ -1218,8 +1318,8 @@ export function ProductCheckout({
                   ) : null}
                   {validQuantity &&
                   !unconfirmedCodes &&
-                  summary.total === 0 &&
-                  summary.discount > 0 ? (
+                  finalProductTotal === 0 &&
+                  summary.discount + shopDiscount > 0 ? (
                     <p className="rounded-lg bg-primary/5 p-3 text-xs font-medium text-primary">
                       Ưu đãi đã giảm toàn bộ tiền hàng của bạn.
                     </p>
@@ -1240,7 +1340,7 @@ export function ProductCheckout({
                     ? "Đang xác nhận..."
                     : validQuantity &&
                         !unconfirmedCodes &&
-                        summary.total + shippingTotal === 0 &&
+                        finalProductTotal + shippingTotal === 0 &&
                         shippingConfirmed
                       ? "Xác nhận đặt hàng 0đ"
                       : "Xác nhận đặt hàng"}

@@ -1,13 +1,12 @@
-"use server"
-
-import { ApiError } from "@/api/client"
-import { getCurrentSession } from "@/api/auth/queries"
+import { LiveApiError as ApiError } from "@/api/live-client"
 import {
   markConversationRead,
   recordPresenceHeartbeat,
   sendChatMessage,
-} from "@/api/chats/mutations"
-import { getChatHistory, getChats } from "@/api/chats/queries"
+  getCurrentSession,
+  getChatHistory,
+  getChats,
+} from "@/api/chats/browser"
 import type { ChatHistoryResponse, ChatsResponse } from "@/api/chats/types"
 import type { UnreadCounts } from "@/types/auth"
 import type { ActionState } from "@/types/forms"

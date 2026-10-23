@@ -92,87 +92,115 @@ const productFields = {
     .max(50, "Mỗi sản phẩm được tải tối đa 50 ảnh bổ sung."),
 }
 
-export const createProductSchema = z
-  .discriminatedUnion("has_variants", [
-    z.object({
-      ...productFields,
-      has_variants: z.literal(false),
-      stock: productStockSchema,
-      options: z
-        .custom<ProductOptionDraft[]>()
-        .transform(() => [] as ProductOptionDraft[]),
-      variants: z
-        .custom<ProductVariantDraft[]>()
-        .transform(() => [] as ProductVariantDraft[]),
-    }),
-    z.object({
-      ...productFields,
-      has_variants: z.literal(true),
-      // The simple-product stock input is hidden in variant mode.
-      stock: z.custom<number>().transform(() => 0),
-      options: productOptionsSchema,
-      variants: productVariantsSchema,
-    }),
-  ])
-  .superRefine((value, context) => {
-    if (typeof value.old_price === "number" && value.old_price <= value.price)
-      context.addIssue({
-        code: "custom",
-        path: ["old_price"],
-        message: "Giá gốc phải lớn hơn giá ưu đãi.",
-      })
-    if (!value.has_variants) return
+const createProductBaseSchema = z.discriminatedUnion("has_variants", [
+  z.object({
+    ...productFields,
+    has_variants: z.literal(false),
+    stock: productStockSchema,
+    options: z
+      .custom<ProductOptionDraft[]>()
+      .transform(() => [] as ProductOptionDraft[]),
+    variants: z
+      .custom<ProductVariantDraft[]>()
+      .transform(() => [] as ProductVariantDraft[]),
+  }),
+  z.object({
+    ...productFields,
+    has_variants: z.literal(true),
+    // The simple-product stock input is hidden in variant mode.
+    stock: z.custom<number>().transform(() => 0),
+    options: productOptionsSchema,
+    variants: productVariantsSchema,
+  }),
+])
 
-    const catalog = validateProductOptions(value.options)
-    if (!catalog.success) {
-      catalog.issues.forEach((issue) =>
-        context.addIssue({ code: "custom", ...issue })
-      )
-    }
-
-    if (value.variants.length === 0) {
-      context.addIssue({
-        code: "custom",
-        path: ["variants"],
-        message: "Hãy tạo danh sách biến thể từ các thuộc tính đã nhập.",
-      })
-    } else if (
-      catalog.success &&
-      !variantsMatchOptions(
-        catalog.options,
-        catalog.combinationCount,
-        value.variants
-      )
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["variants"],
-        message:
-          "Thuộc tính đã thay đổi. Hãy tạo / cập nhật danh sách biến thể.",
-      })
-    }
-
-    let defaultCount = 0
-    value.variants.forEach((variant, variantIndex) => {
-      if (!variant.is_default) return
-      defaultCount += 1
-      if (!variant.is_active) {
-        context.addIssue({
-          code: "custom",
-          path: ["variants", variantIndex, "is_active"],
-          message: "Biến thể mặc định phải đang được bán.",
-        })
-      }
+function validateProductCatalog(
+  value: Omit<
+    z.infer<typeof createProductBaseSchema>,
+    "image" | "gallery_images"
+  >,
+  context: z.RefinementCtx
+) {
+  if (typeof value.old_price === "number" && value.old_price <= value.price)
+    context.addIssue({
+      code: "custom",
+      path: ["old_price"],
+      message: "Giá gốc phải lớn hơn giá ưu đãi.",
     })
+  if (!value.has_variants) return
 
-    if (value.variants.length > 0 && defaultCount !== 1) {
+  const catalog = validateProductOptions(value.options)
+  if (!catalog.success) {
+    catalog.issues.forEach((issue) =>
+      context.addIssue({ code: "custom", ...issue })
+    )
+  }
+
+  if (value.variants.length === 0) {
+    context.addIssue({
+      code: "custom",
+      path: ["variants"],
+      message: "Hãy tạo danh sách biến thể từ các thuộc tính đã nhập.",
+    })
+  } else if (
+    catalog.success &&
+    !variantsMatchOptions(
+      catalog.options,
+      catalog.combinationCount,
+      value.variants
+    )
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["variants"],
+      message: "Thuộc tính đã thay đổi. Hãy tạo / cập nhật danh sách biến thể.",
+    })
+  }
+
+  let defaultCount = 0
+  value.variants.forEach((variant, variantIndex) => {
+    if (!variant.is_default) return
+    defaultCount += 1
+    if (!variant.is_active) {
       context.addIssue({
         code: "custom",
-        path: ["variants"],
-        message: "Sản phẩm phải có đúng một biến thể mặc định đang bán.",
+        path: ["variants", variantIndex, "is_active"],
+        message: "Biến thể mặc định phải đang được bán.",
       })
     }
   })
+
+  if (value.variants.length > 0 && defaultCount !== 1) {
+    context.addIssue({
+      code: "custom",
+      path: ["variants"],
+      message: "Sản phẩm phải có đúng một biến thể mặc định đang bán.",
+    })
+  }
+}
+
+export const createProductSchema = createProductBaseSchema.superRefine(
+  validateProductCatalog
+)
+
+const stagedImageFields = {
+  primary_image_upload: z
+    .string()
+    .min(1, "Vui lòng tải ảnh đại diện sản phẩm.")
+    .max(2048),
+  gallery_image_uploads: z.array(z.string().min(1).max(2048)).max(50),
+}
+
+export const createProductStagedUploadSchema = z
+  .discriminatedUnion("has_variants", [
+    createProductBaseSchema.options[0]
+      .omit({ image: true, gallery_images: true })
+      .extend(stagedImageFields),
+    createProductBaseSchema.options[1]
+      .omit({ image: true, gallery_images: true })
+      .extend(stagedImageFields),
+  ])
+  .superRefine(validateProductCatalog)
 
 // Enforce transport size after browser preparation, so camera batches are not
 // rejected solely because their original files add up to more than 32 MB.

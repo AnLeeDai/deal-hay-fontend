@@ -23,6 +23,7 @@ type OrderPayload = CheckoutValues & {
   variant_id?: string
   discount_code?: string
   discount_codes?: string[]
+  shop_coupon_code?: string
 }
 
 export async function orderProductAction(
@@ -67,6 +68,7 @@ export async function orderProductAction(
         variant_id: values.variant_id,
         discount_code: values.discount_code,
         discount_codes: values.discount_codes,
+        shop_coupon_code: values.shop_coupon_code,
       },
     })
     revalidatePath(`/shops/${shopUserCode}/products/${productSlug}`)

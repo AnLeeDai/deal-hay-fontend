@@ -1,6 +1,10 @@
 import { UploadError } from "@/lib/form-utils"
 import { imageFileSchema } from "@/lib/validation"
-import { requestImageTransformAction } from "@/modules/media/actions"
+import {
+  discardProductImageUploadsAction,
+  requestImageTransformAction,
+  requestProductImageUploadsAction,
+} from "@/modules/media/actions"
 import type { ValidationErrors } from "@/types/common"
 import type { ImagePurpose } from "@/types/media"
 
@@ -178,7 +182,8 @@ function uploadImage(
   field: string,
   fileName: string,
   onProgress?: (progress: FileProgress) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  stagedToken?: string
 ): Promise<{ content: ArrayBuffer; contentType: string }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
@@ -198,7 +203,7 @@ function uploadImage(
     xhr.timeout = 120_000
     xhr.withCredentials = false
     xhr.setRequestHeader("Accept", "image/webp, application/json")
-    xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`)
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable) return
       onProgress?.({
@@ -228,11 +233,14 @@ function uploadImage(
           }
         }
         reject(
-          imageUploadError(
-            field,
-            fileName,
-            error?.message || uploadFallback,
-            error?.errors
+          Object.assign(
+            imageUploadError(
+              field,
+              fileName,
+              error?.message || uploadFallback,
+              error?.errors
+            ),
+            { status: xhr.status }
           )
         )
         return
@@ -242,6 +250,7 @@ function uploadImage(
     signal?.addEventListener("abort", abort, { once: true })
     const payload = new FormData()
     payload.set("image", file)
+    if (stagedToken) payload.set("token", stagedToken)
     xhr.send(payload)
   })
 }
@@ -400,36 +409,145 @@ export async function prepareImageUploads(
     })
   }
   publish()
-  const transformed = new Map<number, File>()
+  const transformed = new Map<number, File | string>()
+  const stagedTokens: string[] = []
+  const preparedProducts = new Map<number, File>()
+  if (purpose === "product" && images.length > 0) {
+    for (const [position, { field, file, index }] of images.entries()) {
+      const parsed = imageFileSchema("Ảnh không hợp lệ.").safeParse(file)
+      if (!parsed.success) {
+        throw imageUploadError(field, file.name, parsed.error.issues[0].message)
+      }
+      const prepared = await prepareOneAtATime(async () => {
+        Object.assign(progress[position], { stage: "preparing", percent: 0 })
+        publish()
+        return prepareBrowserImage(file, purpose, field)
+      })
+      preparedProducts.set(index, prepared)
+      Object.assign(progress[position], { stage: "queued", percent: 20 })
+      publish()
+    }
+    const sessions = await requestProductImageUploadsAction(
+      images.map(({ index }) => {
+        const file = preparedProducts.get(index)!
+        return { size: file.size, content_type: file.type }
+      })
+    )
+    if (!sessions.success || !sessions.data) {
+      throw new UploadError(sessions.message || uploadFallback, sessions.errors)
+    }
+    stagedTokens.push(...sessions.data.tokens)
+  }
   let cursor = 0
   const worker = async () => {
     while (cursor < images.length && !controller.signal.aborted) {
       const position = cursor++
       const { field, file, index } = images[position]
-      transformed.set(
-        index,
-        await transformImageFile(file, purpose, field, {
-          signal: controller.signal,
-          onProgress: (update) => {
-            Object.assign(progress[position], update)
-            publish()
-          },
+      const update = (update: FileProgress) => {
+        Object.assign(progress[position], update)
+        publish()
+      }
+      if (purpose === "product") {
+        const prepared = preparedProducts.get(index)!
+        const token = await uploadTwoAtATime(async () => {
+          if (controller.signal.aborted) throw new Error("Upload aborted")
+          update({
+            stage: "uploading",
+            percent: 25,
+            loaded: 0,
+            total: prepared.size,
+          })
+          // The same-origin proxy streams one small file, retains HttpOnly
+          // authentication, and allows uploads outside the Server Action queue.
+          const url = new URL(
+            "/api/live/uploads/images/prepare",
+            window.location.origin
+          )
+          for (let attempt = 0; ; attempt++) {
+            try {
+              await uploadImage(
+                url,
+                "",
+                prepared,
+                field,
+                file.name,
+                update,
+                controller.signal,
+                stagedTokens[position]
+              )
+              break
+            } catch (error) {
+              const retryable =
+                error instanceof Error &&
+                (error.message === uploadFallback ||
+                  ("status" in error &&
+                    [409, 429, 502, 503, 504].includes(Number(error.status))))
+              if (!retryable || attempt >= 2 || controller.signal.aborted) {
+                update({
+                  stage: "error",
+                  percent: 0,
+                  loaded: 0,
+                  total: prepared.size,
+                })
+                throw error
+              }
+              // Prepare is idempotent: retry the original token after a lost
+              // response without writing a second image or consuming the token.
+              update({
+                stage: "processing",
+                percent: 25,
+                loaded: 0,
+                total: prepared.size,
+              })
+              await new Promise((resolve) =>
+                setTimeout(resolve, 1000 * (attempt + 1))
+              )
+            }
+          }
+          update({
+            stage: "complete",
+            percent: 100,
+            loaded: prepared.size,
+            total: prepared.size,
+          })
+          return stagedTokens[position]
         })
-      )
+        transformed.set(index, token)
+      } else {
+        transformed.set(
+          index,
+          await transformImageFile(file, purpose, field, {
+            signal: controller.signal,
+            onProgress: update,
+          })
+        )
+      }
     }
   }
+  const workers = Array.from({ length: Math.min(2, images.length) }, worker)
   try {
-    await Promise.all(
-      Array.from({ length: Math.min(2, images.length) }, worker)
-    )
+    await Promise.all(workers)
   } catch (error) {
     controller.abort()
+    // Settle every worker before cleaning completed and unused reservations.
+    await Promise.allSettled(workers)
+    if (stagedTokens.length > 0) {
+      await discardProductImageUploadsAction(stagedTokens)
+    }
     throw error
   }
 
   const payload = new FormData()
   for (const [index, [field, value]] of entries.entries()) {
-    payload.append(field, transformed.get(index) ?? value)
+    const output = transformed.get(index)
+    if (purpose === "product" && typeof output === "string") {
+      payload.append(
+        field === "image" ? "primary_image_upload" : "gallery_image_uploads",
+        output
+      )
+    } else {
+      payload.append(field, output ?? value)
+    }
   }
   return payload
 }

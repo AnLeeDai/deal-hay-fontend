@@ -24,6 +24,7 @@ import {
   adjustInventorySchema,
   createCouponSchema,
   createProductUploadSchema,
+  createProductStagedUploadSchema,
   replyReviewSchema,
   type AdjustInventoryValues,
   type CreateCouponValues,
@@ -81,7 +82,10 @@ export async function createProductAction(
     }
   }
 
-  const parsed = createProductUploadSchema.safeParse({
+  const uploadSchema = formData.has("primary_image_upload")
+    ? createProductStagedUploadSchema
+    : createProductUploadSchema
+  const parsed = uploadSchema.safeParse({
     name: formData.get("name"),
     category: formData.get("category"),
     price: Number(formData.get("price")),
@@ -94,6 +98,8 @@ export async function createProductAction(
     label: formData.get("label"),
     image: formData.get("image"),
     gallery_images: formData.getAll("gallery_images"),
+    primary_image_upload: formData.get("primary_image_upload"),
+    gallery_image_uploads: formData.getAll("gallery_image_uploads"),
     has_variants: catalog.has_variants === true,
     options: Array.isArray(catalog.options) ? catalog.options : [],
     variants: Array.isArray(catalog.variants) ? catalog.variants : [],
@@ -128,10 +134,17 @@ export async function createProductAction(
   if (parsed.data.label && parsed.data.label !== "") {
     payload.set("label", parsed.data.label)
   }
-  payload.set("image", parsed.data.image)
-  parsed.data.gallery_images.forEach((image) => {
-    payload.append("gallery_images[]", image)
-  })
+  if ("primary_image_upload" in parsed.data) {
+    payload.set("primary_image_upload", parsed.data.primary_image_upload)
+    parsed.data.gallery_image_uploads.forEach((token) => {
+      payload.append("gallery_image_uploads[]", token)
+    })
+  } else {
+    payload.set("image", parsed.data.image)
+    parsed.data.gallery_images.forEach((image) => {
+      payload.append("gallery_images[]", image)
+    })
+  }
 
   if (parsed.data.has_variants) {
     const options = parsed.data.options.map((option) => ({

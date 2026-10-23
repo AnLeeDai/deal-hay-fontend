@@ -206,6 +206,19 @@ test("API value-array errors appear on the visible comma-separated input", () =>
   )
 })
 
+test("staged image errors appear on the corresponding visible image inputs", () => {
+  assert.deepEqual(
+    productFormErrors({
+      primary_image_upload: ["Ảnh đại diện đã hết hạn"],
+      "gallery_image_uploads.2": ["Ảnh thư viện không hợp lệ"],
+    }),
+    {
+      image: ["Ảnh đại diện đã hết hạn"],
+      gallery_images: ["Ảnh thư viện không hợp lệ"],
+    }
+  )
+})
+
 test("switching off variants ignores hidden invalid options and variant fields", () => {
   const result = createProductSchema.safeParse(
     product({

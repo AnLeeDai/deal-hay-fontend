@@ -30,10 +30,18 @@ const validationUrl = transpileModule("../src/lib/validation.ts", {
 })
 const formUtilsUrl = transpileModule("../src/lib/form-utils.ts")
 const grantUrl = moduleUrl(`
-  export const state = { requests: [], result: null }
+  export const state = { requests: [], result: null, batches: [], discarded: [] }
   export async function requestImageTransformAction(request) {
     state.requests.push(request)
     return state.result ?? { success: true, data: { url: "https://images.example.com/transform", token: "one-use-token" } }
+  }
+  export async function requestProductImageUploadsAction(uploads) {
+    const batch = state.batches.length
+    state.batches.push(uploads)
+    return { success: true, data: { tokens: uploads.map((_, index) => 'batch-' + batch + '-token-' + index) } }
+  }
+  export async function discardProductImageUploadsAction(tokens) {
+    state.discarded.push(tokens)
   }
 `)
 const { state: grants } = await import(grantUrl)
@@ -68,6 +76,7 @@ class FakeXHR {
   open(method, url) {
     this.method = method
     this.url = url
+    this.responseURL = url
   }
   setRequestHeader(name, value) {
     this.headers[name] = value
@@ -127,6 +136,9 @@ test.beforeEach(() => {
   canvasReferences = []
   grants.requests.length = 0
   grants.result = null
+  grants.batches.length = 0
+  grants.discarded.length = 0
+  globalThis.window = { location: { origin: "https://shop.example.com" } }
   globalThis.XMLHttpRequest = FakeXHR
   globalThis.createImageBitmap = async () => {
     activeDecoded++
@@ -171,6 +183,7 @@ test.afterEach(() => {
   delete globalThis.document
   delete globalThis.createImageBitmap
   delete globalThis.XMLHttpRequest
+  delete globalThis.window
 })
 
 test("camera images are resized before the grant and report completion only after a valid server acknowledgement", async () => {
@@ -271,7 +284,7 @@ test("batch progress includes every image and preserves repeated fields and form
   form.append("gallery_images", image("first.jpg"))
   form.append("gallery_images", image("second.jpg"))
   const snapshots = []
-  const result = prepareImageUploads(form, "product", (progress) =>
+  const result = prepareImageUploads(form, "review", (progress) =>
     snapshots.push(progress)
   )
   await until(() => requests.length === 2)
@@ -306,7 +319,7 @@ test("a failed batch aborts its sibling upload, stops remaining images, and rele
   const form = new FormData()
   for (let index = 0; index < 4; index++)
     form.append("gallery_images", image(`${index}.jpg`))
-  const result = prepareImageUploads(form, "product")
+  const result = prepareImageUploads(form, "review")
   await until(() => requests.length === 2)
   requests[0].finish(
     422,
@@ -391,4 +404,142 @@ test("chat documents bypass image preparation and preserve metadata", async () =
   assert.equal(payload.get("body"), "Nội dung")
   assert.equal(payload.get("socket_id"), "123.456")
   assert.equal(grants.requests.length, 0)
+})
+
+test("a 51-image product gallery stages one image per request and submits only ordered tokens", async () => {
+  const form = new FormData()
+  form.set("name", "Sản phẩm nhiều ảnh")
+  form.set("image", image("main.jpg"))
+  for (let index = 0; index < 50; index++) {
+    form.append("gallery_images", image(`${index}.jpg`))
+  }
+  const snapshots = []
+  const result = prepareImageUploads(form, "product", (update) =>
+    snapshots.push(update)
+  )
+  await until(() => requests.length === 2)
+
+  assert.equal(grants.batches.length, 1)
+  assert.equal(grants.batches[0].length, 51)
+  assert.ok(grants.batches[0].every((upload) => upload.size === 12_000))
+  assert.equal(grants.requests.length, 0)
+  assert.equal(peakDecoded, 1)
+  assert.equal(releasedImages, 51)
+
+  for (let index = 0; index < 51; index++) {
+    await until(() => requests.length > index)
+    const request = requests[index]
+    assert.equal(
+      request.url,
+      "https://shop.example.com/api/live/uploads/images/prepare"
+    )
+    assert.equal(request.payload.getAll("image").length, 1)
+    assert.equal(request.payload.get("image").size, 12_000)
+    assert.equal(request.payload.get("token"), `batch-0-token-${index}`)
+    assert.equal(request.headers.Authorization, undefined)
+    request.progress(100, 100)
+    request.finish(204, new ArrayBuffer(0), "application/json")
+  }
+  const payload = await result
+
+  assert.equal(peakUploads, 2)
+  assert.equal(payload.get("name"), "Sản phẩm nhiều ảnh")
+  assert.equal(payload.get("primary_image_upload"), "batch-0-token-0")
+  assert.deepEqual(
+    payload.getAll("gallery_image_uploads"),
+    Array.from({ length: 50 }, (_, index) => `batch-0-token-${index + 1}`)
+  )
+  assert.ok(
+    Array.from(payload.values()).every((value) => typeof value === "string")
+  )
+  assert.equal(snapshots.at(-1).completed, 51)
+  assert.equal(snapshots.at(-1).percent, 100)
+  assert.deepEqual(grants.discarded, [])
+})
+
+test("two product batches share bounded upload capacity and keep their tokens isolated", async () => {
+  const form = () => {
+    const payload = new FormData()
+    payload.set("image", image("main.jpg"))
+    payload.append("gallery_images", image("gallery.jpg"))
+    return payload
+  }
+  const results = Promise.all([
+    prepareImageUploads(form(), "product"),
+    prepareImageUploads(form(), "product"),
+  ])
+  for (let index = 0; index < 4; index++) {
+    await until(() => requests.length > index)
+    requests[index].finish(204, new ArrayBuffer(0), "application/json")
+  }
+  const batches = await results
+  assert.equal(peakUploads, 2)
+  assert.equal(peakDecoded, 1)
+  assert.deepEqual(
+    batches.map((payload) => payload.get("primary_image_upload")),
+    ["batch-0-token-0", "batch-1-token-0"]
+  )
+  assert.deepEqual(
+    batches.map((payload) => payload.getAll("gallery_image_uploads")),
+    [["batch-0-token-1"], ["batch-1-token-1"]]
+  )
+})
+
+test("a rejected product image cancels its sibling and discards all reserved tokens", async () => {
+  const form = new FormData()
+  form.set("image", image("main.jpg"))
+  for (let index = 0; index < 3; index++)
+    form.append("gallery_images", image(`${index}.jpg`))
+  const result = prepareImageUploads(form, "product")
+  await until(() => requests.length === 2)
+  requests[0].finish(
+    422,
+    new TextEncoder().encode(
+      JSON.stringify({
+        message: "Ảnh bị hỏng",
+        errors: { image: ["Không giải mã được ảnh"] },
+      })
+    ).buffer,
+    "application/json"
+  )
+  await assert.rejects(result, (error) => {
+    assert.deepEqual(error.errors, {
+      image: ["main.jpg: Không giải mã được ảnh"],
+    })
+    return true
+  })
+  assert.equal(requests[1].aborted, true)
+  assert.equal(requests.length, 2)
+  assert.deepEqual(grants.discarded, [
+    [
+      "batch-0-token-0",
+      "batch-0-token-1",
+      "batch-0-token-2",
+      "batch-0-token-3",
+    ],
+  ])
+  assert.equal(activeUploads, 0)
+})
+
+test("a transient product upload failure retries the original token without duplicating its session", async () => {
+  const form = new FormData()
+  form.set("image", image())
+  const result = prepareImageUploads(form, "product")
+  await until(() => requests.length === 1)
+  requests[0].finish(
+    503,
+    new TextEncoder().encode(JSON.stringify({ message: "Kho ảnh đang bận" }))
+      .buffer,
+    "application/json"
+  )
+  await new Promise((resolve) => setTimeout(resolve, 1100))
+  await until(() => requests.length === 2)
+  requests[1].finish(204, new ArrayBuffer(0), "application/json")
+  const payload = await result
+  assert.equal(grants.batches.length, 1)
+  assert.equal(
+    requests[0].payload.get("token"),
+    requests[1].payload.get("token")
+  )
+  assert.equal(payload.get("primary_image_upload"), "batch-0-token-0")
 })
