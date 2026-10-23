@@ -13,7 +13,7 @@ import {
 import { profileRoutes } from "@/api/profile/routes"
 import type { ActionState } from "@/types/forms"
 import {
-  avatarSchema,
+  preparedAvatarSchema as avatarSchema,
   shopOwnerUpgradeSchema,
   updatePasswordSchema,
   updateProfileSchema,

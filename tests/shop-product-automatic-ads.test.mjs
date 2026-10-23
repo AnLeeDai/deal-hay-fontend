@@ -79,7 +79,7 @@ function productDraft(overrides = {}) {
     stock: 10,
     label: "",
     description: "Sản phẩm mới",
-    image: new File(["image"], "product.png", { type: "image/png" }),
+    image: new File(["image"], "product.webp", { type: "image/webp" }),
     gallery_images: [],
     has_variants: false,
     options: [],
@@ -254,4 +254,37 @@ test("price updates keep product media separate from centrally supplied ads", as
     price: 80000,
     video_url: "https://example.com/product.mp4",
   })
+})
+
+test("direct product actions reject originals while draft forms still allow local compression", async () => {
+  const image = new File(["raw"], "source.png", { type: "image/png" })
+  assert.equal(
+    createProductSchema.safeParse(productDraft({ image })).success,
+    true
+  )
+  const result = await actions.createProductAction(productFormData({ image }))
+  assert.equal(result.success, false)
+  assert.match(result.errors.image[0], /nén trên thiết bị/)
+  assert.equal(state.calls.length, 0)
+})
+
+test("direct product actions preserve final product WebP files above 20 KiB up to 512 KiB", async () => {
+  const image = new File([new Uint8Array(512 * 1024)], "detailed.webp", {
+    type: "image/webp",
+  })
+  assert.equal(
+    (await actions.createProductAction(productFormData({ image }))).success,
+    true
+  )
+  assert.equal(state.calls[0].body.get("image"), image)
+  state.calls.length = 0
+  const tooLarge = new File([new Uint8Array(512 * 1024 + 1)], "large.webp", {
+    type: "image/webp",
+  })
+  const rejected = await actions.createProductAction(
+    productFormData({ image: tooLarge })
+  )
+  assert.equal(rejected.success, false)
+  assert.match(rejected.errors.image[0], /512 KB/)
+  assert.equal(state.calls.length, 0)
 })

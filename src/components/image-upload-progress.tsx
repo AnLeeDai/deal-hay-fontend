@@ -5,10 +5,10 @@ import type {
 
 const stageLabels: Record<ImageUploadStage, string> = {
   queued: "Đang chờ",
-  preparing: "Đang thu nhỏ ảnh",
+  preparing: "Đang nén ảnh trên thiết bị",
   uploading: "Đang gửi ảnh",
-  processing: "Đang chờ máy chủ xử lý",
-  complete: "Ảnh đã xử lý",
+  processing: "Đang xác nhận lưu ảnh",
+  complete: "Ảnh đã sẵn sàng",
   error: "Không tải được ảnh",
 }
 
@@ -30,8 +30,8 @@ export function ImageUploadProgress({
       >
         <span>
           {progress.completed === progress.files.length
-            ? "Ảnh đã xử lý. Đang lưu nội dung..."
-            : `Tải ảnh (${progress.completed}/${progress.files.length})`}
+            ? "Ảnh đã sẵn sàng. Đang lưu nội dung..."
+            : `Chuẩn bị và tải ảnh (${progress.completed}/${progress.files.length})`}
         </span>
         <span className="shrink-0 tabular-nums">{percent}%</span>
       </div>

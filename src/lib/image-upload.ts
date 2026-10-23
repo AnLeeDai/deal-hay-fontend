@@ -1,16 +1,16 @@
 import { UploadError } from "@/lib/form-utils"
-import { imageFileSchema } from "@/lib/validation"
+import {
+  imageFileSchema,
+  PREPARED_IMAGE_MAX_BYTES,
+  PRODUCT_PREPARED_IMAGE_MAX_BYTES,
+} from "@/lib/validation"
 import {
   discardProductImageUploadsAction,
-  requestImageTransformAction,
   requestProductImageUploadsAction,
 } from "@/modules/media/actions"
 import type { ValidationErrors } from "@/types/common"
 import type { ImagePurpose } from "@/types/media"
 
-const transformMaxBytes = 20 * 1024
-const preparedMaxBytes = 512 * 1024
-const fallbackMaxBytes = 256 * 1024
 const uploadFallback =
   "Không thể tải ảnh lên. Vui lòng kiểm tra kết nối và thử lại."
 
@@ -49,7 +49,8 @@ function concurrencyLimit(maximum: number) {
   }
 }
 
-// Keep decoded camera images out of PHP and avoid decoding several at once.
+// Share capacity across previews and forms so large camera images decode once
+// at a time, even when several upload batches are active.
 const prepareOneAtATime = concurrencyLimit(1)
 const uploadTwoAtATime = concurrencyLimit(2)
 
@@ -93,68 +94,103 @@ async function decodeImage(file: File) {
 async function prepareBrowserImage(
   file: File,
   purpose: ImagePurpose | "preview",
-  field: string
+  field: string,
+  signal?: AbortSignal
 ): Promise<File> {
+  const outputMaxBytes =
+    purpose === "product"
+      ? PRODUCT_PREPARED_IMAGE_MAX_BYTES
+      : PREPARED_IMAGE_MAX_BYTES
   let decoded: Awaited<ReturnType<typeof decodeImage>> | undefined
   let canvas: HTMLCanvasElement | undefined
   try {
+    if (signal?.aborted) throw new DOMException("Upload aborted", "AbortError")
     if (typeof document === "undefined") throw new Error("Canvas unavailable")
     decoded = await decodeImage(file)
-    if (decoded.width < 1 || decoded.height < 1) {
+    if (signal?.aborted) throw new DOMException("Upload aborted", "AbortError")
+    if (
+      decoded.width < 1 ||
+      decoded.height < 1 ||
+      decoded.width > 8192 ||
+      decoded.height > 8192 ||
+      decoded.width * decoded.height > 32_000_000
+    ) {
       throw new Error("Invalid dimensions")
     }
     const maximum =
       purpose === "preview" ? 160 : purpose === "avatar" ? 640 : 1280
     const scale = Math.min(1, maximum / Math.max(decoded.width, decoded.height))
     canvas = document.createElement("canvas")
-    canvas.width = Math.max(1, Math.round(decoded.width * scale))
-    canvas.height = Math.max(1, Math.round(decoded.height * scale))
+    let width = Math.max(1, Math.round(decoded.width * scale))
+    let height = Math.max(1, Math.round(decoded.height * scale))
     const context = canvas.getContext("2d")
     if (!context) throw new Error("Canvas unavailable")
-    context.drawImage(decoded.source, 0, 0, canvas.width, canvas.height)
-    const encode = (type: string, quality: number) =>
+    const encode = (quality: number) =>
       new Promise<Blob>((resolve, reject) => {
         canvas!.toBlob(
           (blob) =>
             blob ? resolve(blob) : reject(new Error("Cannot encode image")),
-          type,
+          "image/webp",
           quality
         )
       })
-
-    let blob = await encode("image/webp", 0.82)
-    if (blob.size > preparedMaxBytes) {
-      // JPEG is also a fallback for browsers whose canvas only exports PNG.
-      context.fillStyle = "#fff"
-      context.fillRect(0, 0, canvas.width, canvas.height)
-      context.drawImage(decoded.source, 0, 0, canvas.width, canvas.height)
-      blob = await encode("image/jpeg", 0.72)
-    }
-    if (blob.size < 1 || blob.size > preparedMaxBytes) {
-      throw new Error("Prepared image too large")
-    }
-    const extension =
-      blob.type === "image/webp"
-        ? "webp"
-        : blob.type === "image/jpeg"
-          ? "jpg"
-          : "png"
-    return new File(
-      [blob],
-      `${file.name.replace(/\.[^/.]+$/, "") || "image"}.${extension}`,
-      {
-        type: blob.type,
-        lastModified: file.lastModified,
+    // Match the existing quality/size budget entirely on the user's device.
+    // Canvas snapshots an animated source into one static, oriented frame and
+    // writes a fresh file without the original EXIF/location metadata.
+    for (let attempt = 0; attempt < 8; attempt++) {
+      canvas.width = width
+      canvas.height = height
+      context.drawImage(decoded.source, 0, 0, width, height)
+      let encodedSize = 0
+      for (const quality of [0.82, 0.68, 0.54]) {
+        if (signal?.aborted)
+          throw new DOMException("Upload aborted", "AbortError")
+        const blob = await encode(quality)
+        if (signal?.aborted)
+          throw new DOMException("Upload aborted", "AbortError")
+        if (blob.type !== "image/webp") {
+          throw imageUploadError(
+            field,
+            file.name,
+            "Trình duyệt chưa hỗ trợ xuất ảnh WEBP. Vui lòng cập nhật trình duyệt hoặc thử trình duyệt khác."
+          )
+        }
+        if (blob.size < 1) throw new Error("Empty encoded image")
+        encodedSize = blob.size
+        if (blob.size <= outputMaxBytes) {
+          return new File(
+            [blob],
+            `${file.name.replace(/\.[^/.]+$/, "") || "image"}.webp`,
+            {
+              type: "image/webp",
+              lastModified: file.lastModified,
+            }
+          )
+        }
       }
-    )
-  } catch {
-    // A small source can still use the backend's format and memory checks.
-    // Never silently send a large camera original when browser decoding fails.
-    if (purpose !== "preview" && file.size <= fallbackMaxBytes) return file
+      if (width === 1 && height === 1) break
+      const reduction = Math.max(
+        0.5,
+        Math.min(0.85, Math.sqrt(outputMaxBytes / encodedSize) * 0.95)
+      )
+      width = Math.max(1, Math.floor(width * reduction))
+      height = Math.max(1, Math.floor(height * reduction))
+    }
     throw imageUploadError(
       field,
       file.name,
-      "Trình duyệt không thể thu nhỏ ảnh này. Vui lòng đổi sang JPG, PNG, WEBP hoặc chọn ảnh dưới 256 KB."
+      `Không thể nén ảnh xuống ${outputMaxBytes / 1024} KB trên thiết bị. Vui lòng chọn ảnh khác hoặc giảm kích thước ảnh trước khi tải lên.`
+    )
+  } catch (error) {
+    if (
+      error instanceof UploadError ||
+      (error instanceof DOMException && error.name === "AbortError")
+    )
+      throw error
+    throw imageUploadError(
+      field,
+      file.name,
+      "Trình duyệt không thể đọc hoặc nén ảnh này. Vui lòng đổi ảnh sang JPG, PNG hoặc WEBP, giảm kích thước ảnh rồi thử lại."
     )
   } finally {
     decoded?.release()
@@ -171,20 +207,22 @@ export function createImagePreview(
 ): Promise<Blob> {
   return prepareOneAtATime(async () => {
     if (signal?.aborted) throw new Error("Preview cancelled")
-    return prepareBrowserImage(file, "preview", "image")
+    const parsed = imageFileSchema("Ảnh không hợp lệ.").safeParse(file)
+    if (!parsed.success)
+      throw imageUploadError("image", file.name, parsed.error.issues[0].message)
+    return prepareBrowserImage(file, "preview", "image", signal)
   })
 }
 
 function uploadImage(
   url: URL,
-  token: string,
   file: File,
   field: string,
   fileName: string,
   onProgress?: (progress: FileProgress) => void,
   signal?: AbortSignal,
   stagedToken?: string
-): Promise<{ content: ArrayBuffer; contentType: string }> {
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     const abort = () => xhr.abort()
@@ -202,8 +240,7 @@ function uploadImage(
     xhr.responseType = "arraybuffer"
     xhr.timeout = 120_000
     xhr.withCredentials = false
-    xhr.setRequestHeader("Accept", "image/webp, application/json")
-    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+    xhr.setRequestHeader("Accept", "application/json")
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable) return
       onProgress?.({
@@ -245,7 +282,17 @@ function uploadImage(
         )
         return
       }
-      resolve({ content: xhr.response, contentType })
+      if (xhr.status !== 204 || (xhr.response?.byteLength ?? 0) !== 0) {
+        reject(
+          imageUploadError(
+            field,
+            fileName,
+            "Máy chủ chưa xác nhận lưu ảnh. Vui lòng thử lại."
+          )
+        )
+        return
+      }
+      resolve()
     }
     signal?.addEventListener("abort", abort, { once: true })
     const payload = new FormData()
@@ -295,69 +342,15 @@ export async function transformImageFile(
         loaded: 0,
         total: file.size,
       })
-      return prepareBrowserImage(file, purpose, field)
+      return prepareBrowserImage(file, purpose, field, options.signal)
     })
-    return await uploadTwoAtATime(async () => {
-      if (options.signal?.aborted) throw new Error("Upload aborted")
-      const grant = await requestImageTransformAction({
-        size: prepared.size,
-        purpose,
-      })
-      if (!grant.success || !grant.data) {
-        throw imageUploadError(
-          field,
-          file.name,
-          grant.message || uploadFallback,
-          grant.errors
-        )
-      }
-
-      const url = new URL(grant.data.url)
-      if (url.protocol !== "https:" && url.protocol !== "http:") {
-        throw imageUploadError(field, file.name, uploadFallback)
-      }
-
-      options.onProgress?.({
-        stage: "uploading",
-        percent: 0,
-        loaded: 0,
-        total: prepared.size,
-      })
-      let uploaded = { loaded: 0, total: prepared.size }
-      const { content, contentType } = await uploadImage(
-        url,
-        grant.data.token,
-        prepared,
-        field,
-        file.name,
-        (progress) => {
-          uploaded = { loaded: progress.loaded, total: progress.total }
-          options.onProgress?.(progress)
-        },
-        options.signal
-      )
-      const header = new TextDecoder("ascii").decode(content.slice(0, 12))
-      if (
-        contentType.split(";")[0].trim().toLowerCase() !== "image/webp" ||
-        content.byteLength > transformMaxBytes ||
-        header.slice(0, 4) !== "RIFF" ||
-        header.slice(8, 12) !== "WEBP"
-      ) {
-        throw imageUploadError(
-          field,
-          file.name,
-          "Phản hồi xử lý ảnh không hợp lệ."
-        )
-      }
-
-      const name = `${file.name.replace(/\.[^/.]+$/, "") || "image"}.webp`
-      const output = new File([content], name, {
-        type: "image/webp",
-        lastModified: file.lastModified,
-      })
-      options.onProgress?.({ stage: "complete", percent: 100, ...uploaded })
-      return output
+    options.onProgress?.({
+      stage: "complete",
+      percent: 100,
+      loaded: prepared.size,
+      total: prepared.size,
     })
+    return prepared
   } catch (error) {
     options.onProgress?.({
       stage: "error",
@@ -418,13 +411,24 @@ export async function prepareImageUploads(
       if (!parsed.success) {
         throw imageUploadError(field, file.name, parsed.error.issues[0].message)
       }
-      const prepared = await prepareOneAtATime(async () => {
-        Object.assign(progress[position], { stage: "preparing", percent: 0 })
+      let prepared: File
+      try {
+        prepared = await prepareOneAtATime(async () => {
+          Object.assign(progress[position], { stage: "preparing", percent: 0 })
+          publish()
+          return prepareBrowserImage(file, purpose, field, controller.signal)
+        })
+      } catch (error) {
+        Object.assign(progress[position], { stage: "error", percent: 0 })
         publish()
-        return prepareBrowserImage(file, purpose, field)
-      })
+        throw error
+      }
       preparedProducts.set(index, prepared)
-      Object.assign(progress[position], { stage: "queued", percent: 20 })
+      Object.assign(progress[position], {
+        stage: "queued",
+        percent: 0,
+        total: prepared.size,
+      })
       publish()
     }
     const sessions = await requestProductImageUploadsAction(
@@ -453,7 +457,7 @@ export async function prepareImageUploads(
           if (controller.signal.aborted) throw new Error("Upload aborted")
           update({
             stage: "uploading",
-            percent: 25,
+            percent: 0,
             loaded: 0,
             total: prepared.size,
           })
@@ -467,7 +471,6 @@ export async function prepareImageUploads(
             try {
               await uploadImage(
                 url,
-                "",
                 prepared,
                 field,
                 file.name,
@@ -495,7 +498,7 @@ export async function prepareImageUploads(
               // response without writing a second image or consuming the token.
               update({
                 stage: "processing",
-                percent: 25,
+                percent: 0,
                 loaded: 0,
                 total: prepared.size,
               })

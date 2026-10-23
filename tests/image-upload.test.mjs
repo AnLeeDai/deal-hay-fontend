@@ -3,10 +3,8 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 import ts from "typescript"
 
-function moduleUrl(source) {
-  return `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
-}
-
+const moduleUrl = (source) =>
+  `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
 function transpileModule(relativePath, imports = {}) {
   const { outputText } = ts.transpileModule(
     readFileSync(new URL(relativePath, import.meta.url), "utf8"),
@@ -18,31 +16,24 @@ function transpileModule(relativePath, imports = {}) {
     }
   )
   return moduleUrl(
-    outputText.replace(/from (["'])([^"']+)\1/g, (match, quote, specifier) => {
+    outputText.replace(/from (["'])([^"']+)\1/g, (_, quote, specifier) => {
       assert.ok(imports[specifier], `Unmocked import: ${specifier}`)
       return `from ${quote}${imports[specifier]}${quote}`
     })
   )
 }
-
 const validationUrl = transpileModule("../src/lib/validation.ts", {
   zod: import.meta.resolve("zod"),
 })
 const formUtilsUrl = transpileModule("../src/lib/form-utils.ts")
 const grantUrl = moduleUrl(`
-  export const state = { requests: [], result: null, batches: [], discarded: [] }
-  export async function requestImageTransformAction(request) {
-    state.requests.push(request)
-    return state.result ?? { success: true, data: { url: "https://images.example.com/transform", token: "one-use-token" } }
-  }
+  export const state = { batches: [], discarded: [], result: null }
   export async function requestProductImageUploadsAction(uploads) {
     const batch = state.batches.length
     state.batches.push(uploads)
-    return { success: true, data: { tokens: uploads.map((_, index) => 'batch-' + batch + '-token-' + index) } }
+    return state.result ?? { success: true, data: { tokens: uploads.map((_, index) => 'batch-' + batch + '-token-' + index) } }
   }
-  export async function discardProductImageUploadsAction(tokens) {
-    state.discarded.push(tokens)
-  }
+  export async function discardProductImageUploadsAction(tokens) { state.discarded.push(tokens) }
 `)
 const { state: grants } = await import(grantUrl)
 const { prepareImageUploads, transformImageFile, createImagePreview } =
@@ -53,30 +44,27 @@ const { prepareImageUploads, transformImageFile, createImagePreview } =
       "@/modules/media/actions": grantUrl,
     })
   )
-
-const webp = Uint8Array.from(Buffer.from("RIFF0000WEBP", "ascii")).buffer
-let requests = []
-let activeUploads = 0
-let peakUploads = 0
-let activeDecoded = 0
-let peakDecoded = 0
-let releasedImages = 0
-let drawSizes = []
-let canvasReferences = []
-
+let requests,
+  activeUploads,
+  peakUploads,
+  activeDecoded,
+  peakDecoded,
+  releasedImages,
+  drawSizes,
+  canvasReferences,
+  encodeCalls,
+  bitmapOptions,
+  encodeOutput
 class FakeXHR {
   upload = {}
   headers = {}
-  responseURL = "https://images.example.com/transform"
-  status = 200
-  response = webp
-  contentType = "image/webp"
+  status = 204
+  response = new ArrayBuffer(0)
+  contentType = "application/json"
   done = false
-
   open(method, url) {
     this.method = method
-    this.url = url
-    this.responseURL = url
+    this.url = this.responseURL = url
   }
   setRequestHeader(name, value) {
     this.headers[name] = value
@@ -93,7 +81,11 @@ class FakeXHR {
   progress(loaded, total) {
     this.upload.onprogress?.({ loaded, total, lengthComputable: true })
   }
-  finish(status = 200, response = webp, contentType = "image/webp") {
+  finish(
+    status = 204,
+    response = new ArrayBuffer(0),
+    contentType = "application/json"
+  ) {
     assert.equal(this.done, false)
     this.done = true
     activeUploads--
@@ -102,45 +94,51 @@ class FakeXHR {
   }
   abort() {
     if (this.done) return
-    this.done = true
-    this.aborted = true
+    this.done = this.aborted = true
     activeUploads--
     this.onabort?.()
   }
-  failNetwork(event = "onerror") {
+  failNetwork() {
     this.done = true
     activeUploads--
-    this[event]?.()
+    this.onerror?.()
   }
 }
-
 function image(name = "camera.jpg", size = 300 * 1024) {
   return new File([new Uint8Array(size)], name, {
     type: "image/jpeg",
     lastModified: 1234,
   })
 }
-
+function batch(count = 2) {
+  const form = new FormData()
+  form.set("name", "Sản phẩm")
+  form.set("image", image("main.jpg"))
+  for (let index = 1; index < count; index++)
+    form.append("gallery_images", image(`${index}.jpg`))
+  return form
+}
 async function until(condition) {
-  for (let attempt = 0; attempt < 100; attempt++) {
+  for (let attempt = 0; attempt < 300; attempt++) {
     if (condition()) return
     await new Promise((resolve) => setImmediate(resolve))
   }
   assert.fail("Expected asynchronous upload state was not reached")
 }
-
 test.beforeEach(() => {
   requests = []
   activeUploads = peakUploads = activeDecoded = peakDecoded = releasedImages = 0
   drawSizes = []
   canvasReferences = []
-  grants.requests.length = 0
+  encodeCalls = []
+  bitmapOptions = []
+  grants.batches.length = grants.discarded.length = 0
   grants.result = null
-  grants.batches.length = 0
-  grants.discarded.length = 0
+  encodeOutput = () => ({ size: 12_000, type: "image/webp" })
   globalThis.window = { location: { origin: "https://shop.example.com" } }
   globalThis.XMLHttpRequest = FakeXHR
-  globalThis.createImageBitmap = async () => {
+  globalThis.createImageBitmap = async (_, options) => {
+    bitmapOptions.push(options)
     activeDecoded++
     peakDecoded = Math.max(peakDecoded, activeDecoded)
     return {
@@ -160,15 +158,30 @@ test.beforeEach(() => {
         height: 0,
         getContext() {
           return {
-            drawImage(source, x, y, width, height) {
+            drawImage(_, x, y, width, height) {
               drawSizes.push([width, height])
             },
-            fillRect() {},
           }
         },
-        toBlob(callback, type) {
+        toBlob(callback, type, quality) {
+          encodeCalls.push({
+            width: this.width,
+            height: this.height,
+            quality,
+            type,
+          })
+          const output = encodeOutput({
+            width: this.width,
+            height: this.height,
+            quality,
+            type,
+          })
           setImmediate(() =>
-            callback(new Blob([new Uint8Array(12_000)], { type }))
+            callback(
+              output
+                ? new Blob([new Uint8Array(output.size)], { type: output.type })
+                : null
+            )
           )
         },
       }
@@ -177,127 +190,180 @@ test.beforeEach(() => {
     },
   }
 })
-
 test.afterEach(() => {
   for (const request of requests) if (!request.done) request.abort()
-  delete globalThis.document
-  delete globalThis.createImageBitmap
-  delete globalThis.XMLHttpRequest
-  delete globalThis.window
+  for (const key of [
+    "document",
+    "createImageBitmap",
+    "XMLHttpRequest",
+    "window",
+    "Image",
+  ])
+    delete globalThis[key]
 })
 
-test("camera images are resized before the grant and report completion only after a valid server acknowledgement", async () => {
+test("camera preparation produces final WebP locally without an HTTP transform or original-file fallback", async () => {
+  const source = image()
   const progress = []
-  const result = transformImageFile(image(), "product", "gallery_images", {
+  const output = await transformImageFile(source, "product", "gallery_images", {
     onProgress: (update) => progress.push(update),
   })
-  await until(() => requests.length === 1)
-  const request = requests[0]
-
   assert.deepEqual(drawSizes, [[1280, 853]])
-  assert.deepEqual(grants.requests, [{ size: 12_000, purpose: "product" }])
-  assert.equal(request.payload.get("image").size, 12_000)
-  assert.equal(request.headers.Authorization, "Bearer one-use-token")
-  assert.equal(request.withCredentials, false)
-  assert.equal(request.responseType, "arraybuffer")
-  request.progress(50, 100)
-  assert.equal(progress.at(-1).percent, 50)
-  request.progress(100, 100)
-  assert.equal(progress.at(-1).percent, 99)
-  assert.equal(progress.at(-1).stage, "processing")
-  assert.equal(
-    progress.some((update) => update.percent === 100),
-    false
-  )
-
-  request.finish()
-  const output = await result
-
+  assert.deepEqual(bitmapOptions, [{ imageOrientation: "from-image" }])
   assert.equal(output.name, "camera.webp")
   assert.equal(output.type, "image/webp")
   assert.equal(output.lastModified, 1234)
-  assert.equal(progress.at(-1).percent, 100)
-  assert.equal(progress.at(-1).stage, "complete")
-  assert.equal(releasedImages, 1)
-  assert.equal(canvasReferences[0].width, 0)
-})
-
-test("avatar preparation uses a smaller raster", async () => {
-  const result = transformImageFile(image(), "avatar")
-  await until(() => requests.length === 1)
-  requests[0].finish()
-  await result
-
-  assert.deepEqual(drawSizes, [[640, 427]])
-})
-
-test("selected-image previews use small thumbnails and release their decoded camera source", async () => {
-  const thumbnail = await createImagePreview(image())
-
-  assert.deepEqual(drawSizes, [[160, 107]])
-  assert.equal(thumbnail.type, "image/webp")
+  assert.notEqual(output, source)
+  assert.ok(output.size <= 512 * 1024)
+  assert.equal(requests.length, 0)
+  assert.equal(grants.batches.length, 0)
+  assert.deepEqual(
+    progress.map((update) => [update.stage, update.percent]),
+    [
+      ["preparing", 0],
+      ["complete", 100],
+    ]
+  )
   assert.equal(releasedImages, 1)
   assert.equal(activeDecoded, 0)
-  assert.equal(grants.requests.length, 0)
+  assert.equal(canvasReferences[0].width, 0)
+  assert.equal(canvasReferences[0].height, 0)
+})
+test("avatar and preview dimensions remain bounded, sharing serialized decoding", async () => {
+  const [avatar, preview] = await Promise.all([
+    transformImageFile(image(), "avatar"),
+    createImagePreview(image()),
+  ])
+  assert.deepEqual(drawSizes, [
+    [640, 427],
+    [160, 107],
+  ])
+  assert.equal(avatar.type, "image/webp")
+  assert.equal(preview.type, "image/webp")
+  assert.equal(peakDecoded, 1)
+  assert.equal(releasedImages, 2)
   assert.equal(requests.length, 0)
 })
-
-test("cancelled previews skip queued decoding and do not fall back to original camera files", async () => {
-  const controller = new AbortController()
-  controller.abort()
+test("compression tries the existing quality levels before reducing resolution", async () => {
+  encodeOutput = ({ quality }) => ({
+    type: "image/webp",
+    size: quality === 0.54 ? 19_000 : 32_000,
+  })
+  const output = await transformImageFile(image(), "review")
+  assert.equal(output.size, 19_000)
+  assert.deepEqual(
+    encodeCalls.map((call) => call.quality),
+    [0.82, 0.68, 0.54]
+  )
+  assert.deepEqual(drawSizes, [[1280, 853]])
+})
+test("noisy images reduce dimensions and retry highest quality to fit the final 20 KiB budget", async () => {
+  encodeOutput = ({ width }) => ({
+    type: "image/webp",
+    size: width > 640 ? 100_000 : 18_000,
+  })
+  const output = await transformImageFile(image(), "review")
+  assert.ok(output.size <= 20 * 1024)
+  assert.deepEqual(drawSizes, [
+    [1280, 853],
+    [640, 426],
+  ])
+  assert.deepEqual(
+    encodeCalls.map((call) => call.quality),
+    [0.82, 0.68, 0.54, 0.82]
+  )
+})
+test("a browser without WebP encoding never uploads its PNG fallback, even for small originals", async () => {
+  encodeOutput = () => ({ size: 1000, type: "image/png" })
   await assert.rejects(
-    createImagePreview(image(), controller.signal),
+    transformImageFile(image("small.jpg", 1000), "avatar"),
+    /cập nhật trình duyệt/
+  )
+  assert.equal(requests.length, 0)
+  assert.equal(grants.batches.length, 0)
+  assert.equal(activeDecoded, 0)
+  assert.equal(canvasReferences[0].width, 0)
+})
+test("failed browser decoding rejects both small and camera originals with an actionable error", async () => {
+  delete globalThis.document
+  for (const size of [1000, 300 * 1024])
+    await assert.rejects(
+      transformImageFile(image("failed.jpg", size), "product"),
+      /đổi ảnh sang JPG, PNG hoặc WEBP/
+    )
+  assert.equal(requests.length, 0)
+  assert.equal(grants.batches.length, 0)
+})
+test("HTML image decoding fallback is still local and releases its object URL", async () => {
+  delete globalThis.createImageBitmap
+  const originalCreate = URL.createObjectURL,
+    originalRevoke = URL.revokeObjectURL
+  const revoked = []
+  URL.createObjectURL = () => "blob:fixture"
+  URL.revokeObjectURL = (url) => revoked.push(url)
+  globalThis.Image = class {
+    naturalWidth = 320
+    naturalHeight = 240
+    set src(_) {
+      queueMicrotask(() => this.onload())
+    }
+  }
+  try {
+    const output = await transformImageFile(image(), "chat")
+    assert.equal(output.type, "image/webp")
+    assert.deepEqual(drawSizes, [[320, 240]])
+    assert.deepEqual(revoked, ["blob:fixture"])
+  } finally {
+    URL.createObjectURL = originalCreate
+    URL.revokeObjectURL = originalRevoke
+  }
+})
+test("uncompressible and empty encodes fail rather than returning an oversized or original file", async () => {
+  for (const size of [100_000, 0]) {
+    encodeOutput = () => ({ size, type: "image/webp" })
+    await assert.rejects(
+      transformImageFile(image(), "review"),
+      /nén ảnh|nén ảnh xuống 20 KB/
+    )
+  }
+  assert.equal(requests.length, 0)
+  assert.equal(activeDecoded, 0)
+  assert.ok(
+    canvasReferences.every(
+      (canvas) => canvas.width === 0 && canvas.height === 0
+    )
+  )
+})
+test("cancellation skips queued work and releases a decoded image when encoding was already running", async () => {
+  const alreadyCancelled = new AbortController()
+  alreadyCancelled.abort()
+  await assert.rejects(
+    createImagePreview(image(), alreadyCancelled.signal),
     /cancelled/
   )
   assert.equal(releasedImages, 0)
-
-  delete globalThis.document
-  await assert.rejects(createImagePreview(image("small.jpg", 1000)), /256 KB/)
-  assert.equal(grants.requests.length, 0)
-})
-
-test("multiple uploads decode one image at a time and keep at most two network requests active", async () => {
-  const results = Promise.all(
-    Array.from({ length: 5 }, (_, index) =>
-      transformImageFile(image(`${index}.jpg`), "product")
-    )
-  )
-  await until(() => requests.length === 2 && releasedImages === 5)
-  assert.equal(peakDecoded, 1)
-  assert.equal(peakUploads, 2)
-
-  for (let index = 0; index < 5; index++) {
-    await until(() => requests.length > index)
-    requests[index].finish()
+  const controller = new AbortController()
+  encodeOutput = () => {
+    controller.abort()
+    return { size: 12000, type: "image/webp" }
   }
-  await results
-
-  assert.equal(peakUploads, 2)
-  assert.equal(activeUploads, 0)
+  await assert.rejects(
+    transformImageFile(image(), "chat", "attachment", {
+      signal: controller.signal,
+    }),
+    /tải ảnh|aborted/
+  )
   assert.equal(activeDecoded, 0)
+  assert.equal(requests.length, 0)
+  encodeOutput = () => ({ size: 12000, type: "image/webp" })
+  assert.equal((await transformImageFile(image(), "avatar")).type, "image/webp")
 })
-
-test("batch progress includes every image and preserves repeated fields and form order despite out-of-order responses", async () => {
-  const form = new FormData()
-  form.set("name", "Sản phẩm")
-  form.set("image", image("main.jpg"))
-  form.append("gallery_images", image("first.jpg"))
-  form.append("gallery_images", image("second.jpg"))
-  const snapshots = []
-  const result = prepareImageUploads(form, "review", (progress) =>
+test("local batch normalization preserves repeated fields, metadata, original form and progress snapshots", async () => {
+  const form = batch(3),
+    snapshots = []
+  const payload = await prepareImageUploads(form, "review", (progress) =>
     snapshots.push(progress)
   )
-  await until(() => requests.length === 2)
-  const firstSnapshot = snapshots[0]
-  requests[1].progress(100, 100)
-  requests[1].finish()
-  await until(() => requests.length === 3)
-  assert.equal(snapshots.at(-1).completed, 1)
-  assert.equal(snapshots.at(-1).percent, 33)
-  requests[2].finish()
-  requests[0].finish()
-  const payload = await result
-
   assert.deepEqual(Array.from(payload.keys()), [
     "name",
     "image",
@@ -307,125 +373,49 @@ test("batch progress includes every image and preserves repeated fields and form
   assert.equal(payload.get("name"), "Sản phẩm")
   assert.deepEqual(
     payload.getAll("gallery_images").map((file) => file.name),
-    ["first.webp", "second.webp"]
+    ["1.webp", "2.webp"]
   )
+  assert.equal(form.get("image").name, "main.jpg")
+  assert.equal(snapshots[0].percent, 0)
   assert.equal(snapshots.at(-1).percent, 100)
   assert.equal(snapshots.at(-1).completed, 3)
-  assert.equal(firstSnapshot.percent, 0)
-  assert.ok(firstSnapshot.files.every((file) => file.percent === 0))
-})
-
-test("a failed batch aborts its sibling upload, stops remaining images, and releases upload slots", async () => {
-  const form = new FormData()
-  for (let index = 0; index < 4; index++)
-    form.append("gallery_images", image(`${index}.jpg`))
-  const result = prepareImageUploads(form, "review")
-  await until(() => requests.length === 2)
-  requests[0].finish(
-    422,
-    new TextEncoder().encode(
-      JSON.stringify({
-        message: "Ảnh không hợp lệ",
-        errors: { image: ["Ảnh bị hỏng"] },
-      })
-    ).buffer,
-    "application/json"
+  assert.ok(
+    snapshots[0].files.every(
+      (file) => file.stage === "queued" && file.percent === 0
+    )
   )
-
-  await assert.rejects(result, (error) => {
-    assert.match(error.message, /0.jpg: Ảnh không hợp lệ/)
-    assert.deepEqual(error.errors, { gallery_images: ["0.jpg: Ảnh bị hỏng"] })
-    return true
-  })
-  assert.equal(requests[1].aborted, true)
-  assert.equal(grants.requests.length, 2)
-
-  const retry = transformImageFile(image("retry.jpg"), "product")
-  await until(() => requests.length === 3)
-  requests[2].finish()
-  assert.equal((await retry).name, "retry.webp")
-  assert.equal(activeUploads, 0)
+  assert.equal(peakDecoded, 1)
+  assert.equal(requests.length, 0)
 })
-
-test("unsupported browser decoding permits only a small controlled backend fallback", async () => {
-  delete globalThis.document
-  await assert.rejects(transformImageFile(image(), "product"), /256 KB/)
-  assert.equal(grants.requests.length, 0)
-
-  const small = image("small.jpg", 1000)
-  const result = transformImageFile(small, "product")
-  await until(() => requests.length === 1)
-  assert.equal(requests[0].payload.get("image"), small)
-  assert.equal(grants.requests[0].size, small.size)
-  requests[0].finish()
-  await result
-})
-
-test("invalid transform responses never report completion", async () => {
-  const progress = []
-  const result = transformImageFile(image(), "product", "image", {
-    onProgress: (update) => progress.push(update),
-  })
-  await until(() => requests.length === 1)
-  requests[0].progress(100, 100)
-  requests[0].finish(200, new TextEncoder().encode("not a webp").buffer)
-
-  await assert.rejects(result, /Phản hồi xử lý ảnh không hợp lệ/)
-  assert.equal(
-    progress.some((update) => update.percent === 100),
-    false
-  )
-  assert.equal(progress.at(-1).stage, "error")
-})
-
-test("network failures and timeouts release their upload slots for retry", async () => {
-  for (const event of ["onerror", "ontimeout"]) {
-    const result = transformImageFile(image(), "product")
-    await until(() => requests.some((request) => !request.done))
-    requests.find((request) => !request.done).failNetwork(event)
-    await assert.rejects(result, /Không thể tải ảnh lên/)
-  }
-  const result = transformImageFile(image("retry.jpg"), "product")
-  await until(() => requests.some((request) => !request.done))
-  requests.find((request) => !request.done).finish()
-  assert.equal((await result).name, "retry.webp")
-})
-
-test("chat documents bypass image preparation and preserve metadata", async () => {
-  const form = new FormData()
-  const document = new File(["text"], "document.txt", { type: "text/plain" })
+test("chat non-image documents bypass normalization and preserve message metadata", async () => {
+  const form = new FormData(),
+    document = new File(["text"], "document.txt", { type: "text/plain" })
   form.set("attachment", document)
   form.set("body", "Nội dung")
   form.set("socket_id", "123.456")
-
   const payload = await prepareImageUploads(form, "chat")
-
   assert.equal(payload.get("attachment"), document)
   assert.equal(payload.get("body"), "Nội dung")
   assert.equal(payload.get("socket_id"), "123.456")
-  assert.equal(grants.requests.length, 0)
+  assert.equal(releasedImages, 0)
+  assert.equal(requests.length, 0)
 })
-
-test("a 51-image product gallery stages one image per request and submits only ordered tokens", async () => {
-  const form = new FormData()
-  form.set("name", "Sản phẩm nhiều ảnh")
-  form.set("image", image("main.jpg"))
-  for (let index = 0; index < 50; index++) {
-    form.append("gallery_images", image(`${index}.jpg`))
-  }
-  const snapshots = []
-  const result = prepareImageUploads(form, "product", (update) =>
-    snapshots.push(update)
-  )
+test("a 51-image product uploads only final static WebP files and submits ordered references", async () => {
+  const snapshots = [],
+    result = prepareImageUploads(batch(51), "product", (update) =>
+      snapshots.push(update)
+    )
   await until(() => requests.length === 2)
-
   assert.equal(grants.batches.length, 1)
   assert.equal(grants.batches[0].length, 51)
-  assert.ok(grants.batches[0].every((upload) => upload.size === 12_000))
-  assert.equal(grants.requests.length, 0)
-  assert.equal(peakDecoded, 1)
+  assert.ok(
+    grants.batches[0].every(
+      (upload) =>
+        upload.size <= 512 * 1024 && upload.content_type === "image/webp"
+    )
+  )
   assert.equal(releasedImages, 51)
-
+  assert.equal(peakDecoded, 1)
   for (let index = 0; index < 51; index++) {
     await until(() => requests.length > index)
     const request = requests[index]
@@ -433,17 +423,15 @@ test("a 51-image product gallery stages one image per request and submits only o
       request.url,
       "https://shop.example.com/api/live/uploads/images/prepare"
     )
-    assert.equal(request.payload.getAll("image").length, 1)
-    assert.equal(request.payload.get("image").size, 12_000)
+    assert.equal(request.payload.get("image").type, "image/webp")
+    assert.equal(request.payload.get("image").size, 12000)
     assert.equal(request.payload.get("token"), `batch-0-token-${index}`)
     assert.equal(request.headers.Authorization, undefined)
-    request.progress(100, 100)
-    request.finish(204, new ArrayBuffer(0), "application/json")
+    request.finish()
   }
   const payload = await result
-
   assert.equal(peakUploads, 2)
-  assert.equal(payload.get("name"), "Sản phẩm nhiều ảnh")
+  assert.equal(activeUploads, 0)
   assert.equal(payload.get("primary_image_upload"), "batch-0-token-0")
   assert.deepEqual(
     payload.getAll("gallery_image_uploads"),
@@ -452,89 +440,73 @@ test("a 51-image product gallery stages one image per request and submits only o
   assert.ok(
     Array.from(payload.values()).every((value) => typeof value === "string")
   )
-  assert.equal(snapshots.at(-1).completed, 51)
   assert.equal(snapshots.at(-1).percent, 100)
-  assert.deepEqual(grants.discarded, [])
+  assert.equal(snapshots.at(-1).completed, 51)
 })
-
-test("two product batches share bounded upload capacity and keep their tokens isolated", async () => {
-  const form = () => {
-    const payload = new FormData()
-    payload.set("image", image("main.jpg"))
-    payload.append("gallery_images", image("gallery.jpg"))
-    return payload
-  }
-  const results = Promise.all([
-    prepareImageUploads(form(), "product"),
-    prepareImageUploads(form(), "product"),
+test("upload progress uses actual transmitted bytes and only reaches completion after storage acknowledgement", async () => {
+  const snapshots = [],
+    result = prepareImageUploads(batch(1), "product", (update) =>
+      snapshots.push(update)
+    )
+  await until(() => requests.length === 1)
+  assert.equal(snapshots.at(-1).percent, 0)
+  requests[0].progress(50, 100)
+  assert.equal(snapshots.at(-1).percent, 50)
+  requests[0].progress(100, 100)
+  assert.equal(snapshots.at(-1).percent, 99)
+  assert.equal(snapshots.at(-1).files[0].stage, "processing")
+  requests[0].finish()
+  await result
+  assert.equal(snapshots.at(-1).percent, 100)
+  assert.equal(snapshots.at(-1).completed, 1)
+})
+test("simultaneous product batches share two upload slots and keep staged tokens isolated", async () => {
+  const result = Promise.all([
+    prepareImageUploads(batch(), "product"),
+    prepareImageUploads(batch(), "product"),
   ])
   for (let index = 0; index < 4; index++) {
     await until(() => requests.length > index)
-    requests[index].finish(204, new ArrayBuffer(0), "application/json")
+    requests[index].finish()
   }
-  const batches = await results
+  const payloads = await result
   assert.equal(peakUploads, 2)
   assert.equal(peakDecoded, 1)
   assert.deepEqual(
-    batches.map((payload) => payload.get("primary_image_upload")),
+    payloads.map((payload) => payload.get("primary_image_upload")),
     ["batch-0-token-0", "batch-1-token-0"]
   )
-  assert.deepEqual(
-    batches.map((payload) => payload.getAll("gallery_image_uploads")),
-    [["batch-0-token-1"], ["batch-1-token-1"]]
-  )
 })
-
-test("a rejected product image cancels its sibling and discards all reserved tokens", async () => {
-  const form = new FormData()
-  form.set("image", image("main.jpg"))
-  for (let index = 0; index < 3; index++)
-    form.append("gallery_images", image(`${index}.jpg`))
-  const result = prepareImageUploads(form, "product")
+test("a rejected product upload aborts its sibling and discards all reserved tokens", async () => {
+  const result = prepareImageUploads(batch(4), "product")
   await until(() => requests.length === 2)
   requests[0].finish(
     422,
     new TextEncoder().encode(
       JSON.stringify({
         message: "Ảnh bị hỏng",
-        errors: { image: ["Không giải mã được ảnh"] },
+        errors: { image: ["Ảnh không hợp lệ"] },
       })
-    ).buffer,
-    "application/json"
+    ).buffer
   )
   await assert.rejects(result, (error) => {
-    assert.deepEqual(error.errors, {
-      image: ["main.jpg: Không giải mã được ảnh"],
-    })
+    assert.deepEqual(error.errors, { image: ["main.jpg: Ảnh không hợp lệ"] })
     return true
   })
   assert.equal(requests[1].aborted, true)
   assert.equal(requests.length, 2)
-  assert.deepEqual(grants.discarded, [
-    [
-      "batch-0-token-0",
-      "batch-0-token-1",
-      "batch-0-token-2",
-      "batch-0-token-3",
-    ],
-  ])
   assert.equal(activeUploads, 0)
+  assert.deepEqual(grants.discarded, [
+    Array.from({ length: 4 }, (_, index) => `batch-0-token-${index}`),
+  ])
 })
-
-test("a transient product upload failure retries the original token without duplicating its session", async () => {
-  const form = new FormData()
-  form.set("image", image())
-  const result = prepareImageUploads(form, "product")
+test("a transient network failure retries only the original staged token and releases its slot", async () => {
+  const result = prepareImageUploads(batch(1), "product")
   await until(() => requests.length === 1)
-  requests[0].finish(
-    503,
-    new TextEncoder().encode(JSON.stringify({ message: "Kho ảnh đang bận" }))
-      .buffer,
-    "application/json"
-  )
+  requests[0].failNetwork()
   await new Promise((resolve) => setTimeout(resolve, 1100))
   await until(() => requests.length === 2)
-  requests[1].finish(204, new ArrayBuffer(0), "application/json")
+  requests[1].finish()
   const payload = await result
   assert.equal(grants.batches.length, 1)
   assert.equal(
@@ -542,4 +514,56 @@ test("a transient product upload failure retries the original token without dupl
     requests[1].payload.get("token")
   )
   assert.equal(payload.get("primary_image_upload"), "batch-0-token-0")
+  assert.equal(activeUploads, 0)
+})
+test("unreadable product sources fail before creating upload sessions or sending original images", async () => {
+  delete globalThis.document
+  const snapshots = []
+  await assert.rejects(
+    prepareImageUploads(batch(), "product", (update) => snapshots.push(update)),
+    /đổi ảnh sang JPG/
+  )
+  assert.equal(grants.batches.length, 0)
+  assert.equal(requests.length, 0)
+  assert.equal(snapshots.at(-1).files[0].stage, "error")
+})
+
+test("previews reject oversized and unsupported sources before allocating a decoded bitmap", async () => {
+  await assert.rejects(
+    createImagePreview(image("large.jpg", 30 * 1024 * 1024 + 1)),
+    /30 MB/
+  )
+  await assert.rejects(
+    createImagePreview(
+      new File(["heic"], "camera.heic", { type: "image/heic" })
+    ),
+    /định dạng/
+  )
+  assert.equal(bitmapOptions.length, 0)
+  assert.equal(canvasReferences.length, 0)
+})
+
+test("a staged upload never accepts a successful HTML page or unexpected response as storage acknowledgement", async () => {
+  const result = prepareImageUploads(batch(1), "product")
+  await until(() => requests.length === 1)
+  requests[0].finish(
+    200,
+    new TextEncoder().encode("<html>Login</html>").buffer,
+    "text/html"
+  )
+  await assert.rejects(result, /chưa xác nhận lưu ảnh/)
+  assert.equal(grants.discarded.length, 1)
+  assert.equal(activeUploads, 0)
+})
+
+test("product photos preserve 1280px detail above 20 KiB within the existing 512 KiB budget", async () => {
+  encodeOutput = () => ({ size: 320 * 1024, type: "image/webp" })
+  const output = await transformImageFile(image(), "product")
+  assert.equal(output.size, 320 * 1024)
+  assert.deepEqual(drawSizes, [[1280, 853]])
+  assert.deepEqual(
+    encodeCalls.map((call) => call.quality),
+    [0.82]
+  )
+  assert.equal(requests.length, 0)
 })

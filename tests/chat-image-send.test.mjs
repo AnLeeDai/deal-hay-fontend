@@ -68,12 +68,12 @@ function image() {
   return new File(
     [
       Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5SAAAAAASUVORK5CYII=",
+        "UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA",
         "base64"
       ),
     ],
-    "chat-image.png",
-    { type: "image/png" }
+    "chat-image.webp",
+    { type: "image/webp" }
   )
 }
 
@@ -232,5 +232,22 @@ test("a file supplied as message text remains invalid", async () => {
 
   assert.equal(state.success, false)
   assert.ok(state.errors.body.length)
+  assert.equal(sentMessages.length, 0)
+})
+
+test("raw and oversized images are rejected before the chat API is contacted", async () => {
+  for (const attachment of [
+    new File(["raw"], "source.png", { type: "image/png" }),
+    new File([new Uint8Array(20 * 1024 + 1)], "large.webp", {
+      type: "image/webp",
+    }),
+  ]) {
+    const state = await sendMessageAction(
+      "test-conversation",
+      compose("", attachment)
+    )
+    assert.equal(state.success, false)
+    assert.match(state.errors.attachment[0], /nén trên thiết bị/)
+  }
   assert.equal(sentMessages.length, 0)
 })

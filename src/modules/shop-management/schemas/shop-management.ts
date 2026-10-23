@@ -2,6 +2,8 @@ import { z } from "zod"
 
 import {
   imageFileSchema,
+  preparedImageFileSchema,
+  PRODUCT_PREPARED_IMAGE_MAX_BYTES,
   PRODUCT_IMAGES_UPLOAD_MAX_BYTES,
   requiredText,
 } from "@/lib/validation"
@@ -216,6 +218,25 @@ export const createProductUploadSchema = createProductSchema.superRefine(
         path: ["gallery_images"],
         message: "Tổng dung lượng ảnh sản phẩm không được vượt quá 32 MB.",
       })
+      return
+    }
+    const prepared = preparedImageFileSchema(
+      "Ảnh sản phẩm không hợp lệ.",
+      PRODUCT_PREPARED_IMAGE_MAX_BYTES
+    )
+    for (const [index, file] of [
+      value.image,
+      ...value.gallery_images,
+    ].entries()) {
+      const result = prepared.safeParse(file)
+      if (!result.success)
+        result.error.issues.forEach((issue) =>
+          context.addIssue({
+            code: "custom",
+            path: index === 0 ? ["image"] : ["gallery_images", index - 1],
+            message: issue.message,
+          })
+        )
     }
   }
 )

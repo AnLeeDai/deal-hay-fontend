@@ -5,6 +5,8 @@ export const strongPasswordRegex =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z]).+$/
 
 export const IMAGE_UPLOAD_MAX_BYTES = 30 * 1024 * 1024
+export const PREPARED_IMAGE_MAX_BYTES = 20 * 1024
+export const PRODUCT_PREPARED_IMAGE_MAX_BYTES = 512 * 1024
 export const PRODUCT_IMAGES_UPLOAD_MAX_BYTES = 32 * 1024 * 1024
 export const CHAT_FILE_UPLOAD_MAX_BYTES = 3 * 1024 * 1024
 const imageMimeTypes = new Set([
@@ -57,6 +59,22 @@ export function imageFileSchema(message: string) {
       context.addIssue({
         code: "custom",
         message: "Mỗi ảnh không được vượt quá 30 MB.",
+      })
+    }
+  })
+}
+
+// Draft forms accept camera originals. Content actions accept only the final
+// browser output, so they cannot forward an unprepared image to the API.
+export function preparedImageFileSchema(
+  message: string,
+  maximumBytes = PREPARED_IMAGE_MAX_BYTES
+) {
+  return fileSchema(message).superRefine((file, context) => {
+    if (file.type !== "image/webp" || file.size > maximumBytes) {
+      context.addIssue({
+        code: "custom",
+        message: `Ảnh phải được nén trên thiết bị thành WEBP tối đa ${maximumBytes / 1024} KB. Vui lòng chọn lại ảnh rồi thử lại.`,
       })
     }
   })

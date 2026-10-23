@@ -1,6 +1,9 @@
 import { z } from "zod"
 
-import { chatAttachmentFileSchema } from "@/lib/validation"
+import {
+  chatAttachmentFileSchema,
+  preparedImageFileSchema,
+} from "@/lib/validation"
 
 const optionalBodySchema = z.union([
   z.string().trim().max(2000, "Tin nhắn không được vượt quá 2.000 ký tự."),
@@ -27,5 +30,22 @@ export const sendMessageSchema = z
       })
     }
   })
+
+export const sendPreparedMessageSchema = sendMessageSchema.superRefine(
+  (value, context) => {
+    if (!value.attachment?.type.startsWith("image/")) return
+    const image = preparedImageFileSchema(
+      "Ảnh đính kèm không hợp lệ."
+    ).safeParse(value.attachment)
+    if (!image.success)
+      image.error.issues.forEach((issue) =>
+        context.addIssue({
+          code: "custom",
+          path: ["attachment"],
+          message: issue.message,
+        })
+      )
+  }
+)
 
 export type SendMessageValues = z.infer<typeof sendMessageSchema>

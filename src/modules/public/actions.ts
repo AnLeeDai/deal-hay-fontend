@@ -13,7 +13,7 @@ import {
   upsertReview,
 } from "@/api/catalog/mutations"
 import type { ActionState } from "@/types/forms"
-import { reviewProductSchema } from "@/modules/public/schemas/reviews"
+import { preparedReviewProductSchema as reviewProductSchema } from "@/modules/public/schemas/reviews"
 import {
   checkoutSchema,
   type CheckoutValues,

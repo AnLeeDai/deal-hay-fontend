@@ -10,7 +10,7 @@ import {
 import type { ChatHistoryResponse, ChatsResponse } from "@/api/chats/types"
 import type { UnreadCounts } from "@/types/auth"
 import type { ActionState } from "@/types/forms"
-import { sendMessageSchema } from "@/modules/chats/schemas/chats"
+import { sendPreparedMessageSchema as sendMessageSchema } from "@/modules/chats/schemas/chats"
 import type { ChatMessage } from "@/types/chat"
 
 export type SendMessageActionState = ActionState & { data?: ChatMessage }
